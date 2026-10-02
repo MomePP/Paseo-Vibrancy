@@ -364,3 +364,23 @@ test("the quit wait sees the running app even when the script descends from it",
   const run = spawnSync(exe, [], { env: { ...process.env, CHECK: `${pattern}; ${check}` } });
   assert.equal(run.status, 0, "the check must find the ancestor process running at the target path");
 });
+
+test("after the app quits, the swap stops the old bundle's daemon before moving anything", () => {
+  // Quitting Paseo can leave its supervisor and daemon running ("Running in
+  // Background"), and the relaunched copy then attaches to a daemon still
+  // running from the old bundle — which this swap moves to the Trash.
+  const script = swapScript({
+    staging: "/tmp/staging.app",
+    target: "/tmp/Paseo-Vibrancy.app",
+    previousApp: "/Applications/Paseo.app",
+    trashDir: "/tmp/trash",
+    quit: true,
+    open: true,
+  });
+  const stop = script.indexOf("'/Applications/Paseo.app/Contents/Resources/bin/paseo' daemon stop");
+  assert.ok(stop > script.indexOf("quit wait timed out"), "daemon stop must come after the quit wait");
+  assert.ok(stop < script.indexOf("moving previous app to trash"), "daemon stop must come before the bundle is moved");
+  assert.equal(spawnSync("/bin/sh", ["-n", "-c", script]).status, 0, "generated script must be valid POSIX sh");
+
+  assert.doesNotMatch(swapScript({ staging: "/tmp/s.app", target: "/tmp/t.app", trashDir: "/tmp/x", quit: false, open: false }), /daemon stop/);
+});

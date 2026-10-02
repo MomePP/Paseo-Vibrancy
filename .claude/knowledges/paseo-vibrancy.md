@@ -287,6 +287,15 @@ update completing).
   and it attached to the old copy's daemon: killing that daemon left the new
   copy stuck on "reconnecting to host". `test/swap.test.ts` runs the real
   check under a binary sitting at the target's executable path.
+- **Quitting the app can leave its daemon running.** After a Rebuild &
+  restart from stock Paseo, the app exited within ~170 ms of the quit request
+  without its usual "stopping captured supervisor" step, so its supervisor and
+  daemon (both running from the old bundle) stayed up — the Dock showed
+  "Paseo — Running in Background" — and the relaunched copy attached to them.
+  The cause inside Paseo is unconfirmed. The swap no longer relies on it:
+  once the app is gone it runs the old bundle's own
+  `Contents/Resources/bin/paseo daemon stop --timeout 15 --force` before
+  moving anything, so the new copy always starts a daemon from its own bundle.
 - **The swap script must not inherit `ELECTRON_*` variables.** The plugin
   server inherits the daemon's ELECTRON_RUN_AS_NODE=1, and `open -a` hands
   the caller's environment to the app it launches: a Paseo started that way

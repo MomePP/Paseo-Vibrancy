@@ -127,6 +127,19 @@ export function swapScript(opts: SwapOpts): string {
       `  exit 1`,
       `fi`,
     );
+    // Quitting the app does not reliably stop Paseo's supervisor and daemon:
+    // they can stay up ("Running in Background"), and the relaunched copy then
+    // attaches to a daemon still running from the old bundle — which is about
+    // to be moved to the Trash. Stop it with the old bundle's own CLI while
+    // that bundle is still in place; the new copy starts its own on launch.
+    // A failure is logged, not fatal: the swap is still worth finishing.
+    const oldCli = join(opts.previousApp ?? opts.target, "Contents", "Resources", "bin", "paseo");
+    lines.push(
+      `if [ -x ${shq(oldCli)} ]; then`,
+      `  ${log("stopping the previous daemon")}`,
+      `  ${shq(oldCli)} daemon stop --timeout 15 --force || ${log("daemon stop failed, continuing")}`,
+      `fi`,
+    );
   }
 
   // Each `mv` is checked: a failed trash-move stops before `staging` is ever
