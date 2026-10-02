@@ -58,7 +58,7 @@ static napi_value SetBlur(napi_env env, napi_callback_info info) {
     NSView *view = *(NSView *__unsafe_unretained *)data;
     NSWindow *window = view != nil ? [view window] : nil;
 
-    if (window != nil) {
+    if (window != nil && [window windowNumber] > 0) {
       CGSMainConnectionIDFn mainConnectionId =
           (CGSMainConnectionIDFn)dlsym(RTLD_DEFAULT, "CGSMainConnectionID");
       CGSSetWindowBackgroundBlurRadiusFn setWindowBlur =

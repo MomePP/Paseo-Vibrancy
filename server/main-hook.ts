@@ -103,6 +103,15 @@ try {
 
   app.on("browser-window-created", function (_event, win) {
     apply(win);
+    // Paseo creates its main window with show: false and shows it on
+    // ready-to-show; an NSWindow that has never been ordered on screen
+    // has no window-server number yet, so the blur call issued above
+    // targets nothing. Re-apply once the window actually appears.
+    if (win && typeof win.on === "function") {
+      win.on("show", function () {
+        apply(win);
+      });
+    }
   });
 
   var watchTimer = null;

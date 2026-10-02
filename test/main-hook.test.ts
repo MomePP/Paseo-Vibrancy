@@ -13,6 +13,8 @@ interface FakeWindow {
   setVibrancy: (material: string | null) => void;
   getNativeWindowHandle: () => Buffer;
   vibrancyCalls: Array<string | null>;
+  on: (event: string, listener: Listener) => void;
+  fireShow: () => void;
 }
 
 interface BlurCall {
@@ -29,10 +31,21 @@ interface Sandbox {
 }
 
 function makeWindow(): FakeWindow {
+  const showListeners: Listener[] = [];
   const win: FakeWindow = {
     vibrancyCalls: [],
     setVibrancy: (material) => win.vibrancyCalls.push(material),
     getNativeWindowHandle: () => Buffer.alloc(8),
+    on: (event, listener) => {
+      if (event === "show") {
+        showListeners.push(listener);
+      }
+    },
+    fireShow: () => {
+      for (const listener of showListeners) {
+        listener();
+      }
+    },
   };
   return win;
 }
@@ -107,6 +120,22 @@ test("applies blur 30 with no material by default (no settings file)", (t) => {
   const sandbox = loadPgJs(dir);
   const win = makeWindow();
   sandbox.fireBrowserWindowCreated(win);
+
+  assert.deepEqual(win.vibrancyCalls, [null]);
+  assert.equal(sandbox.blurCalls.at(-1)?.radius, 30);
+});
+
+test("re-applies glass when a window emits show (not yet ordered on screen at creation)", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-pg-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const sandbox = loadPgJs(dir);
+  const win = makeWindow();
+  sandbox.fireBrowserWindowCreated(win);
+  sandbox.blurCalls.length = 0;
+  win.vibrancyCalls.length = 0;
+
+  win.fireShow();
 
   assert.deepEqual(win.vibrancyCalls, [null]);
   assert.equal(sandbox.blurCalls.at(-1)?.radius, 30);
