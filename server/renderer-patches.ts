@@ -90,25 +90,9 @@ export const BACKDROP_MASKS: ReTableEntry = {
   replacement: '$1:{backgroundColor:"transparent"',
 };
 
-// The trailing-control scrim lookup table, one anchor for six lexically
-// identical lookups. `surface0`'s entry is a gradient fill (not ink, so
-// INK_SURFACE0 doesn't touch it) and must match what actually shows through
-// a cleared tab — PANE, since full scope has nothing underneath. Sidebar-row
-// tiers go fully transparent; the kebab gets its own background instead (see
-// KEBAB_CHIP/KEBAB_GUTTER).
-export const SCRIM_COLOURS: ExpectedReTableEntry = {
-  label: "trailing scrim per caller",
-  pattern:
-    /\{surface0:([A-Za-z_$][\w$]*)=>\(\{color:[^{}]*\}\),surface1:\1=>\(\{color:[^{}]*\}\),surface2:\1=>\(\{color:[^{}]*\}\),surfaceSidebar:\1=>\(\{color:[^{}]*\}\),surfaceSidebarHover:\1=>\(\{color:[^{}]*\}\),surfaceSidebarSelected:\1=>\(\{color:[^{}]*\}\)\}/g,
-  // placeholder — the real replacement depends on PANE and is built by
-  // scrimTable() at patch time, since PANE itself already carries its own
-  // JS-string quoting.
-  replacement: "",
-  expect: 1,
-};
-
-/** The scrim lookup, with `surface0` set to what shows behind a clear tab. */
-export function scrimTable(pane: string): string {
+// The scrim lookup, with `surface0` set to what shows behind a clear tab —
+// PANE, since full scope has nothing underneath.
+function scrimTable(pane: string): string {
   return (
     `{surface0:$1=>({color:${pane}}),` +
     "surface1:$1=>({color:$1.colors.surface1})," +
@@ -118,6 +102,22 @@ export function scrimTable(pane: string): string {
     'surfaceSidebarSelected:$1=>({color:"transparent"})}'
   );
 }
+
+// The trailing-control scrim lookup table, one anchor for six lexically
+// identical lookups. `surface0`'s entry is a gradient fill (not ink, so
+// INK_SURFACE0 doesn't touch it). PANE is fixed (full scope, always), so the
+// replacement is baked in here rather than built at patch time — this is the
+// literal text Task 6's build fingerprint hashes, so a change to PANE or to
+// the scrim shape has to show up here to invalidate a stale build. Sidebar-
+// row tiers go fully transparent; the kebab gets its own background instead
+// (see KEBAB_CHIP/KEBAB_GUTTER).
+export const SCRIM_COLOURS: ExpectedReTableEntry = {
+  label: "trailing scrim per caller",
+  pattern:
+    /\{surface0:([A-Za-z_$][\w$]*)=>\(\{color:[^{}]*\}\),surface1:\1=>\(\{color:[^{}]*\}\),surface2:\1=>\(\{color:[^{}]*\}\),surfaceSidebar:\1=>\(\{color:[^{}]*\}\),surfaceSidebarHover:\1=>\(\{color:[^{}]*\}\),surfaceSidebarSelected:\1=>\(\{color:[^{}]*\}\)\}/g,
+  replacement: scrimTable(PANE),
+  expect: 1,
+};
 
 // Two kebabs (sidebar row, card), unpainted in stock because the wedge
 // behind them did the work; given a background now that the wedge is
@@ -148,17 +148,19 @@ export const KEBAB_GUTTER: ExpectedReTableEntry = {
 // bright purple that lights up a full-height bar on every pointer crossing.
 // `surface4` (ring) is one clear step above resting `border` with no hue, so
 // the divider still answers the pointer without announcing it so loudly.
+//
+// The pattern has no wildcard spans — every character of the match is either
+// literal or one of the three captured idents — so the replacement can
+// reconstruct the whole match from `$1`/`$2`/`$3` as a plain string (with
+// `accent` swapped for the token in both places it appears) rather than a
+// function over `match[0]`, keeping this patch's full output in BUILD_TABLES
+// for Task 6's fingerprint.
 export const HANDLE_HIGHLIGHT_TOKEN = "surface4";
 export const HANDLE_HIGHLIGHT: ExpectedReTableEntry = {
   label: "subtle resize handle",
   pattern:
     /\[([A-Za-z_$][\w$]*)\.highlight,"horizontal"===([A-Za-z_$][\w$]*)\?\1\.highlightHorizontal:\1\.highlightVertical,\{backgroundColor:([A-Za-z_$][\w$]*)\.colors\.accent\}\],\[\2,\3\.colors\.accent\]/g,
-  replacement: (...match: string[]) => {
-    const theme = match[3];
-    return match[0]
-      .split(`${theme}.colors.accent`)
-      .join(`${theme}.colors.${HANDLE_HIGHLIGHT_TOKEN}`);
-  },
+  replacement: `[$1.highlight,"horizontal"===$2?$1.highlightHorizontal:$1.highlightVertical,{backgroundColor:$3.colors.${HANDLE_HIGHLIGHT_TOKEN}}],[$2,$3.colors.${HANDLE_HIGHLIGHT_TOKEN}]`,
   expect: 1,
 };
 
@@ -351,6 +353,14 @@ export const TERMINAL_METRICS_SYNC =
 // composites with itself.
 export const HTML_FLASH_GUARD = /(html,\s*body\s*\{\s*background-color:\s*)#([0-9a-fA-F]{6});/;
 
+// The wash itself: a CSS `color-mix` against `--paseo-tint` (default 0.85,
+// matching GLASS_DEFAULTS.tint) rather than a baked-in rgba, so a later live
+// control can retint without a rebuild. `$2` is HTML_FLASH_GUARD's captured
+// hex, reused as the `--colors-surface1` fallback so the wash matches
+// whichever dark surface Paseo shipped.
+export const HTML_WASH_REPLACEMENT =
+  "body { background-color: color-mix(in srgb, var(--colors-surface1, #$2) calc(var(--paseo-tint, 0.85) * 100%), transparent);";
+
 // Floating surfaces (menus, dialogs, listboxes) inherit `surface0` rather
 // than `popover`, so zeroing that token took them with it. Fixed with a
 // stylesheet rather than a bundle patch: Paseo emits its theme as CSS custom
@@ -408,5 +418,6 @@ export const BUILD_TABLES = {
   TERMINAL_METRICS,
   TERMINAL_METRICS_SYNC,
   HTML_FLASH_GUARD,
+  HTML_WASH_REPLACEMENT,
   OPAQUE_SURFACES_CSS,
 } as const;

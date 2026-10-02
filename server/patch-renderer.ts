@@ -16,13 +16,14 @@ import {
   FRAME_RATE,
   HANDLE_HIGHLIGHT,
   HOVER_HIGHLIGHT,
+  HTML_FLASH_GUARD,
+  HTML_WASH_REPLACEMENT,
   INK_SURFACE0,
   KEBAB_CHIP,
   KEBAB_GUTTER,
   NAVIGATOR_BACKDROP,
   OPAQUE_SURFACES_CSS,
   OVERLAY_SURFACES,
-  HTML_FLASH_GUARD,
   PANE,
   RENDERER_PATCHES,
   SCRIM_COLOURS,
@@ -31,7 +32,6 @@ import {
   TERMINAL_METRICS,
   TERMINAL_METRICS_SYNC,
   WINDOW_CHROME_PAYLOAD,
-  scrimTable,
 } from "./renderer-patches.ts";
 
 /**
@@ -134,7 +134,7 @@ export function patchRenderer(src: string, term: TermMetrics): { src: string; no
   patcher.replaceRe(INK_SURFACE0.label, INK_SURFACE0.pattern, INK_SURFACE0.replacement, INK_SURFACE0.expect);
   patcher.sweepRe(HOVER_HIGHLIGHT.label, HOVER_HIGHLIGHT.pattern, HOVER_HIGHLIGHT.replacement);
   patcher.sweepRe(BACKDROP_MASKS.label, BACKDROP_MASKS.pattern, BACKDROP_MASKS.replacement);
-  patcher.replaceRe(SCRIM_COLOURS.label, SCRIM_COLOURS.pattern, scrimTable(PANE), SCRIM_COLOURS.expect);
+  patcher.replaceRe(SCRIM_COLOURS.label, SCRIM_COLOURS.pattern, SCRIM_COLOURS.replacement, SCRIM_COLOURS.expect);
   patcher.sweepRe(KEBAB_CHIP.label, KEBAB_CHIP.pattern, KEBAB_CHIP.replacement);
   patcher.replaceRe(KEBAB_GUTTER.label, KEBAB_GUTTER.pattern, KEBAB_GUTTER.replacement, KEBAB_GUTTER.expect);
   patcher.replaceRe(
@@ -153,18 +153,11 @@ export function patchIndexHtml(html: string, padding: string): { html: string; n
   let src = html;
 
   // `html` is dropped from the selector, not just recoloured: the stock rule
-  // targets both elements, and an alpha on each composites with itself. A
-  // CSS `color-mix` against `--paseo-tint` (default 0.85, matching
-  // GLASS_DEFAULTS.tint) rather than a baked-in rgba, so a later live
-  // control can retint without a rebuild — the stock hex stays as the
-  // `--colors-surface1` fallback so the wash matches whichever dark surface
-  // Paseo shipped.
-  let hits = 0;
+  // targets both elements, and an alpha on each composites with itself. See
+  // HTML_WASH_REPLACEMENT for the live-tint `color-mix` formula itself.
   const flashGuard = new RegExp(HTML_FLASH_GUARD.source, "g");
-  src = src.replace(flashGuard, (_match, _prefix: string, hex: string) => {
-    hits += 1;
-    return `body { background-color: color-mix(in srgb, var(--colors-surface1, #${hex}) calc(var(--paseo-tint, 0.85) * 100%), transparent);`;
-  });
+  const hits = [...src.matchAll(flashGuard)].length;
+  src = src.replace(flashGuard, HTML_WASH_REPLACEMENT);
   if (hits !== 1) {
     notes.push(`MISSED  window wash: expected 1 flash-guard rule, found ${hits}`);
   } else {

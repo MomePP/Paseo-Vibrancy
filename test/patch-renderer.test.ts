@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { patchIndexHtml, patchRenderer, rendererPath } from "../server/patch-renderer.ts";
 import { PatchCountError } from "../server/patch-engine.ts";
+import { BUILD_TABLES, PANE, SCRIM_COLOURS } from "../server/renderer-patches.ts";
 import type { TermMetrics } from "../server/ghostty.ts";
 
 const DEFAULT_TERM: TermMetrics = {
@@ -101,4 +102,46 @@ test("patchIndexHtml reports a MISSED note when the flash guard is absent, witho
   const { notes } = patchIndexHtml("<head></head>", "0 0 0 10px");
   assert.ok(notes[0]!.startsWith("MISSED  window wash"));
   assert.ok(notes[1]!.startsWith("ok      opaque floating surfaces"));
+});
+
+test("patchRenderer swaps the resize handle's accent to the subtle token in both occurrences", () => {
+  const src =
+    '[h.highlight,"horizontal"===v?h.highlightHorizontal:h.highlightVertical,' +
+    "{backgroundColor:t.colors.accent}],[v,t.colors.accent]";
+  const { src: patched, notes } = patchRenderer(src, DEFAULT_TERM);
+  assert.ok(patched.includes("{backgroundColor:t.colors.surface4}],[v,t.colors.surface4]"));
+  assert.ok(!patched.includes("t.colors.accent"));
+  assert.ok(notes.some((n) => n.startsWith("ok      subtle resize handle")));
+});
+
+test("SCRIM_COLOURS.replacement is baked from PANE, not a dead placeholder", () => {
+  assert.notEqual(SCRIM_COLOURS.replacement, "");
+  assert.ok(String(SCRIM_COLOURS.replacement).includes(PANE));
+});
+
+test("every BUILD_TABLES patch entry's replacement is a plain string, never a function", () => {
+  // BUILD_TABLES is the only input Task 6's build fingerprint hashes; a
+  // function-valued replacement's actual output would be invisible to it, so
+  // a rewrite of the function body would leave the fingerprint unchanged.
+  function checkEntry(entry: unknown): void {
+    if (!entry || typeof entry !== "object" || !("replacement" in entry)) {
+      return;
+    }
+    const label = "label" in entry ? entry.label : undefined;
+    assert.equal(
+      typeof entry.replacement,
+      "string",
+      `${JSON.stringify(label ?? entry)} has a non-string replacement`,
+    );
+  }
+
+  for (const value of Object.values(BUILD_TABLES)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        checkEntry(entry);
+      }
+    } else {
+      checkEntry(value);
+    }
+  }
 });
