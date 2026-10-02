@@ -85,7 +85,7 @@ These come built into every copy and have no setting:
 | Path | Purpose |
 | --- | --- |
 | `~/Applications/Paseo-Vibrancy.app` | The patched copy |
-| `~/Library/Application Support/Paseo/paseo-vibrancy.json` | Live glass settings |
+| `~/Library/Application Support/Paseo/paseo-vibrancy.json` | Live appearance settings |
 | `~/Library/Caches/paseo-vibrancy/` | Verified Paseo downloads |
 | `~/Library/Logs/paseo-vibrancy-swap.log` | What happened during the last restart |
 
