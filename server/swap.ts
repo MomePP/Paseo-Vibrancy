@@ -44,6 +44,19 @@ function shq(s: string): string {
 }
 
 /**
+ * Escapes POSIX extended-regular-expression metacharacters in `s` so it can
+ * be embedded in a `pgrep -f` pattern and still match only itself. Without
+ * this, a target path containing e.g. `(`, `)`, `+` or `.` would make the
+ * pattern match something other than the literal executable path — or fail
+ * to match it at all — and the script could swap out from under a still-live
+ * Paseo process, or spin for the full 20 s grace period on a process that
+ * already quit.
+ */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * Builds the POSIX sh script `startSwap` runs detached. With `quit`, it asks
  * the running patched copy to quit and waits up to 20 s for its process to
  * clear before touching anything; if it is still up after the grace period,
@@ -53,31 +66,43 @@ function shq(s: string): string {
  */
 export function swapScript(opts: SwapOpts): string {
   const exe = join(opts.target, "Contents", "MacOS", "Paseo");
+  const exePattern = `^${escapeRegex(exe)}$`;
   const trashed = join(opts.trashDir, `Paseo-Vibrancy-${Math.floor(Date.now() / 1000)}.app`);
 
   const lines = ["trap '' HUP"];
 
   if (opts.quit) {
     lines.push(
-      `EXE=${shq(exe)}`,
+      `PATTERN=${shq(exePattern)}`,
       `osascript -e 'tell application id "sh.paseo.desktop" to quit' >/dev/null 2>&1 || true`,
       `i=0`,
       `while [ "$i" -lt ${QUIT_WAIT_ATTEMPTS} ]; do`,
-      `  pgrep -f "^$EXE$" >/dev/null 2>&1 || break`,
+      `  pgrep -f "$PATTERN" >/dev/null 2>&1 || break`,
       `  i=$((i + 1))`,
       `  sleep ${QUIT_WAIT_INTERVAL_SECONDS}`,
       `done`,
-      `if pgrep -f "^$EXE$" >/dev/null 2>&1; then`,
+      `if pgrep -f "$PATTERN" >/dev/null 2>&1; then`,
       `  exit 1`,
       `fi`,
     );
   }
 
+  // Each `mv` is checked: a failed trash-move stops before `staging` is ever
+  // touched, and a failed staging-move (e.g. a dangling `staging` or a
+  // read-only `target` parent) restores the trashed copy rather than leaving
+  // the bundle half-swapped or the user with no app at all. `target` is never
+  // left holding both the old and new bundle nested inside each other.
+  lines.push(`TRASHED=${shq(trashed)}`);
   lines.push(
     `if [ -e ${shq(opts.target)} ]; then`,
-    `  mv ${shq(opts.target)} ${shq(trashed)}`,
+    `  mv ${shq(opts.target)} "$TRASHED" || exit 1`,
     `fi`,
-    `mv ${shq(opts.staging)} ${shq(opts.target)}`,
+    `if ! mv ${shq(opts.staging)} ${shq(opts.target)}; then`,
+    `  if [ -e "$TRASHED" ]; then`,
+    `    mv "$TRASHED" ${shq(opts.target)}`,
+    `  fi`,
+    `  exit 1`,
+    `fi`,
   );
 
   if (opts.open) {
