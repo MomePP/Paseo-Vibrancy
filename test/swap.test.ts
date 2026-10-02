@@ -1,0 +1,179 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { startSwap, swapScript } from "../server/swap.ts";
+import { STAMP_NAME } from "../server/build.ts";
+
+/**
+ * Polls `predicate` up to `timeoutMs`. Exception to fake-timer-only polling:
+ * `startSwap` detaches a real `/bin/sh` child that mutates the filesystem
+ * out-of-process (`mv`), so there is no in-process event or promise to await
+ * — only the platform clock and the resulting files on disk.
+ */
+function sleep(ms: number): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, ms);
+  return promise;
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await sleep(50);
+  }
+  assert.ok(predicate(), `condition not met within ${timeoutMs}ms`);
+}
+
+function makeStaging(dir: string, marker: string): string {
+  const staging = join(dir, "staging.app");
+  mkdirSync(join(staging, "Contents", "Resources"), { recursive: true });
+  writeFileSync(join(staging, "Contents", "Resources", STAMP_NAME), "0.11.0-beta.3|glass=abc123");
+  writeFileSync(join(staging, "Contents", "Resources", "marker.txt"), marker);
+  return staging;
+}
+
+test("swaps staging into target and trashes old", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  try {
+    const staging = makeStaging(dir, "new-build");
+    const target = join(dir, "target.app");
+    mkdirSync(join(target, "Contents", "Resources"), { recursive: true });
+    writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
+    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+
+    try {
+      startSwap({ staging, target, quit: false, open: false, trashDir });
+
+      await waitFor(() => !existsSync(staging));
+      assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "new-build");
+      assert.equal(existsSync(staging), false);
+
+      const trashed = readdirSync(trashDir).filter((name) => name.startsWith("Paseo-Vibrancy-"));
+      assert.equal(trashed.length, 1);
+      assert.ok(trashed[0]!.endsWith(".app"));
+      assert.equal(
+        readFileSync(join(trashDir, trashed[0]!, "Contents", "Resources", "marker.txt"), "utf8"),
+        "old-build",
+      );
+    } finally {
+      rmSync(trashDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refuses staging without stamp", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  try {
+    const staging = join(dir, "staging.app");
+    mkdirSync(join(staging, "Contents", "Resources"), { recursive: true });
+    // No .glass-build stamp written.
+    const target = join(dir, "target.app");
+    mkdirSync(join(target, "Contents", "Resources"), { recursive: true });
+    writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
+    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+
+    try {
+      assert.throws(
+        () => startSwap({ staging, target, quit: false, open: false, trashDir }),
+        /staging has no build stamp/,
+      );
+      assert.equal(existsSync(staging), true);
+      assert.equal(
+        readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"),
+        "old-build",
+      );
+      assert.deepEqual(readdirSync(trashDir), []);
+    } finally {
+      rmSync(trashDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("works when target does not exist yet", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  try {
+    const staging = makeStaging(dir, "first-install");
+    const target = join(dir, "target.app");
+    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+
+    try {
+      startSwap({ staging, target, quit: false, open: false, trashDir });
+
+      await waitFor(() => existsSync(join(target, "Contents", "Resources", "marker.txt")));
+      assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "first-install");
+      assert.equal(existsSync(staging), false);
+      assert.deepEqual(readdirSync(trashDir), []);
+    } finally {
+      rmSync(trashDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a MISSED stamp is still swappable", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  try {
+    const staging = join(dir, "staging.app");
+    mkdirSync(join(staging, "Contents", "Resources"), { recursive: true });
+    writeFileSync(join(staging, "Contents", "Resources", STAMP_NAME), "0.11.0-beta.3|glass=missed");
+    writeFileSync(join(staging, "Contents", "Resources", "marker.txt"), "missed-build");
+    const target = join(dir, "target.app");
+    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+
+    try {
+      startSwap({ staging, target, quit: false, open: false, trashDir });
+
+      await waitFor(() => existsSync(join(target, "Contents", "Resources", "marker.txt")));
+      assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "missed-build");
+    } finally {
+      rmSync(trashDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("quotes paths containing spaces and single quotes safely", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  try {
+    const trickyRoot = join(dir, "Paseo Helper's App Support");
+    mkdirSync(trickyRoot, { recursive: true });
+
+    const staging = makeStaging(trickyRoot, "tricky-build");
+    const target = join(trickyRoot, "Paseo-Vibrancy's Copy.app");
+    const trashDir = join(trickyRoot, "O'Brien's Trash");
+    mkdirSync(trashDir, { recursive: true });
+
+    startSwap({ staging, target, quit: false, open: false, trashDir });
+
+    await waitFor(() => existsSync(join(target, "Contents", "Resources", "marker.txt")));
+    assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "tricky-build");
+    assert.equal(existsSync(staging), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("swapScript quits the running copy and waits for it to clear, but omits that when quit is false", () => {
+  const opts = { staging: "/tmp/staging.app", target: "/tmp/target.app", trashDir: "/tmp/trash", open: false };
+
+  const withQuit = swapScript({ ...opts, quit: true });
+  assert.match(withQuit, /tell application id "sh\.paseo\.desktop" to quit/);
+  assert.match(withQuit, /pgrep -f "\^\$EXE\$"/);
+  assert.match(withQuit, /\/tmp\/target\.app\/Contents\/MacOS\/Paseo/);
+  assert.match(withQuit, /exit 1/);
+
+  const withoutQuit = swapScript({ ...opts, quit: false });
+  assert.doesNotMatch(withoutQuit, /osascript/);
+  assert.doesNotMatch(withoutQuit, /pgrep/);
+  assert.doesNotMatch(withoutQuit, /exit 1/);
+});
