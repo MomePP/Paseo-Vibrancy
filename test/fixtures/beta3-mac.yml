@@ -1,0 +1,19 @@
+version: 0.11.0-beta.3
+files:
+  - url: Paseo-0.11.0-beta.3-arm64.zip
+    sha512: jYwoLTUDSifUiNcMtuyH5ya+25Carjzhyu3xkdct11tFZNd7+Biabi7D5beKXExlBNGJezxC7Fa4DZWYixQfIQ==
+    size: 179110962
+  - url: Paseo-0.11.0-beta.3-arm64.dmg
+    sha512: nesVa0jMadMUrAbl+MKWJMLPejn0bJgYKu67P7mKtPzchaIKZgj2zsQ6f2pke3StIiFtP6hvzYu6oD3lFBT8yQ==
+    size: 185720356
+  - url: Paseo-0.11.0-beta.3-x64.zip
+    sha512: WEgNfwFoH9gPo1qwmOaLHJYycZ20RRLp10ZT6MPFDKrD8hO7ckFSzFPGGtLy+2D2FK+W0YG+7iPml5y97SGXGQ==
+    size: 188801585
+  - url: Paseo-0.11.0-beta.3-x64.dmg
+    sha512: EhBqKzJpO2i4FO+9c+gWoLhSs0Y8jHAMGw7Y5Ptu1UhkmojvrkpOGhHnvy+dl8e0UWNqzJMu3ZseasJytUPEpQ==
+    size: 195529171
+path: Paseo-0.11.0-beta.3-arm64.zip
+sha512: jYwoLTUDSifUiNcMtuyH5ya+25Carjzhyu3xkdct11tFZNd7+Biabi7D5beKXExlBNGJezxC7Fa4DZWYixQfIQ==
+releaseDate: '2026-10-02T00:48:19.000Z'
+minimumSystemVersion: 22.0.0
+rolloutHours: 36
