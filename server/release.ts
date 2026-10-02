@@ -254,19 +254,29 @@ export async function downloadVerified(release: Release, cacheDir: string = DEFA
     await rm(finalPath, { recursive: true, force: true });
     await rename(extractedApp, finalPath);
 
-    for (const entry of await readdir(cacheDir)) {
-      if (entry === `Paseo-${release.version}.app` || !entry.startsWith("Paseo-") || !entry.endsWith(".app")) {
-        continue;
-      }
-      const entryVersion = entry.slice("Paseo-".length, -".app".length);
-      if (compareVersions(entryVersion, release.version) < 0) {
-        await rm(join(cacheDir, entry), { recursive: true, force: true });
-      }
-    }
+    await sweepOlderPristine(cacheDir, release.version);
 
     return finalPath;
   } finally {
     await rm(staging, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Removes every `Paseo-<version>.app` in `cacheDir` whose version is
+ * strictly older than `keepVersion`. Entries that don't match the
+ * `Paseo-*.app` naming pattern, or whose "version" doesn't parse into
+ * comparable numbers, are left alone rather than guessed at.
+ */
+export async function sweepOlderPristine(cacheDir: string, keepVersion: string): Promise<void> {
+  for (const entry of await readdir(cacheDir)) {
+    if (entry === `Paseo-${keepVersion}.app` || !entry.startsWith("Paseo-") || !entry.endsWith(".app")) {
+      continue;
+    }
+    const entryVersion = entry.slice("Paseo-".length, -".app".length);
+    if (compareVersions(entryVersion, keepVersion) < 0) {
+      await rm(join(cacheDir, entry), { recursive: true, force: true });
+    }
   }
 }
 
