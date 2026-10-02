@@ -47,7 +47,7 @@ test("swaps staging into target and trashes old", async () => {
     const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
 
     try {
-      startSwap({ staging, target, quit: false, open: false, trashDir });
+      startSwap({ staging, target, quit: false, open: false, trashDir, logPath: join(dir, "swap.log") });
 
       await waitFor(() => !existsSync(staging));
       assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "new-build");
@@ -106,7 +106,7 @@ test("works when target does not exist yet", async () => {
     const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
 
     try {
-      startSwap({ staging, target, quit: false, open: false, trashDir });
+      startSwap({ staging, target, quit: false, open: false, trashDir, logPath: join(dir, "swap.log") });
 
       await waitFor(() => existsSync(join(target, "Contents", "Resources", "marker.txt")));
       assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "first-install");
@@ -131,7 +131,7 @@ test("a MISSED stamp is still swappable", async () => {
     const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
 
     try {
-      startSwap({ staging, target, quit: false, open: false, trashDir });
+      startSwap({ staging, target, quit: false, open: false, trashDir, logPath: join(dir, "swap.log") });
 
       await waitFor(() => existsSync(join(target, "Contents", "Resources", "marker.txt")));
       assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "missed-build");
@@ -154,7 +154,7 @@ test("quotes paths containing spaces and single quotes safely", async () => {
     const trashDir = join(trickyRoot, "O'Brien's Trash");
     mkdirSync(trashDir, { recursive: true });
 
-    startSwap({ staging, target, quit: false, open: false, trashDir });
+    startSwap({ staging, target, quit: false, open: false, trashDir, logPath: join(trickyRoot, "swap.log") });
 
     await waitFor(() => existsSync(join(target, "Contents", "Resources", "marker.txt")));
     assert.equal(readFileSync(join(target, "Contents", "Resources", "marker.txt"), "utf8"), "tricky-build");
@@ -171,11 +171,77 @@ test("swapScript quits the running copy and waits for it to clear, but omits tha
   assert.match(withQuit, /tell application id "sh\.paseo\.desktop" to quit/);
   assert.match(withQuit, /pgrep -f "\$PATTERN"/);
   assert.match(withQuit, /PATTERN='\^\/tmp\/target\\\.app\/Contents\/MacOS\/Paseo\$'/);
-  assert.match(withQuit, /^if pgrep -f "\$PATTERN".*\n {2}exit 1\nfi$/m);
+  assert.match(withQuit, /^if pgrep -f "\$PATTERN".*\n {2}echo .*\n {2}exit 1\nfi$/m);
 
   const withoutQuit = swapScript({ ...opts, quit: false });
   assert.doesNotMatch(withoutQuit, /osascript/);
   assert.doesNotMatch(withoutQuit, /pgrep/);
+});
+
+test("quit wait tracks both the target's and the currently-running bundle's executables", () => {
+  const withBoth = swapScript({
+    staging: "/tmp/staging.app",
+    target: "/tmp/Paseo-Vibrancy.app",
+    runningExe: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+    trashDir: "/tmp/trash",
+    quit: true,
+    open: false,
+  });
+  assert.match(withBoth, /PATTERN='\^\/tmp\/Paseo-Vibrancy\\\.app\/Contents\/MacOS\/Paseo\$'/);
+  assert.match(withBoth, /RUNNING_PATTERN='\^\/Applications\/Paseo\\\.app\/Contents\/MacOS\/Paseo\$'/);
+  assert.match(withBoth, /pgrep -f "\$PATTERN" >\/dev\/null 2>&1 \|\| pgrep -f "\$RUNNING_PATTERN" >\/dev\/null 2>&1 \|\| break/);
+  assert.equal(spawnSync("/bin/sh", ["-n", "-c", withBoth]).status, 0, "generated script must be valid POSIX sh");
+
+  // runningExe identical to the target's own exe: no second pattern needed.
+  const sameExe = swapScript({
+    staging: "/tmp/staging.app",
+    target: "/tmp/target.app",
+    runningExe: "/tmp/target.app/Contents/MacOS/Paseo",
+    trashDir: "/tmp/trash",
+    quit: true,
+    open: false,
+  });
+  assert.doesNotMatch(sameExe, /RUNNING_PATTERN/);
+});
+
+test("every failure branch after the quit request reopens the previous app when open is true", () => {
+  const script = swapScript({
+    staging: "/tmp/staging.app",
+    target: "/tmp/target.app",
+    trashDir: "/tmp/trash",
+    quit: true,
+    open: true,
+  });
+  const reopenCount = [...script.matchAll(/open -a '\/tmp\/target\.app'/g)].length;
+  // quit-timeout, trash-move-failed, staging-move-failed, and the final success open: four call sites.
+  assert.equal(reopenCount, 4);
+  assert.equal(spawnSync("/bin/sh", ["-n", "-c", script]).status, 0, "generated script must be valid POSIX sh");
+});
+
+test("logs timestamped steps and the failure reason to logPath", () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  try {
+    const target = join(dir, "target.app");
+    mkdirSync(join(target, "Contents", "Resources"), { recursive: true });
+    writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
+    const staging = join(dir, "no-such-staging.app"); // deliberately never created, forces a failure
+    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+    const logPath = join(dir, "swap.log");
+
+    try {
+      const script = swapScript({ staging, target, trashDir, quit: false, open: false, logPath });
+      const result = spawnSync("/bin/sh", ["-c", script]);
+
+      assert.notEqual(result.status, 0);
+      const log = readFileSync(logPath, "utf8");
+      assert.match(log, /^\[\S+\] swap: starting$/m);
+      assert.match(log, /^\[\S+\] swap: staging move failed, restoring previous app$/m);
+    } finally {
+      rmSync(trashDir, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a failed trash-move aborts before staging is touched (e.g. a missing trashDir)", () => {
@@ -187,7 +253,7 @@ test("a failed trash-move aborts before staging is touched (e.g. a missing trash
     writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
     const trashDir = join(dir, "no-such-trash-dir"); // deliberately never created
 
-    const script = swapScript({ staging, target, trashDir, quit: false, open: false });
+    const script = swapScript({ staging, target, trashDir, quit: false, open: false, logPath: join(dir, "swap.log") });
     const result = spawnSync("/bin/sh", ["-c", script]);
 
     assert.notEqual(result.status, 0);
@@ -213,7 +279,7 @@ test("a failed staging-move restores the trashed target", () => {
     const staging = join(dir, "no-such-staging.app"); // deliberately never created
 
     try {
-      const script = swapScript({ staging, target, trashDir, quit: false, open: false });
+      const script = swapScript({ staging, target, trashDir, quit: false, open: false, logPath: join(dir, "swap.log") });
       const result = spawnSync("/bin/sh", ["-c", script]);
 
       assert.notEqual(result.status, 0);

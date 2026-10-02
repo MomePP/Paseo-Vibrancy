@@ -7,12 +7,18 @@
  * (`detached: true`, then `unref()`) so it keeps running after the daemon
  * that spawned it is gone, and the script itself ignores SIGHUP so the
  * group's controlling-terminal hangup on quit cannot cut it short either.
+ * Every step is appended to `logPath` (`exec >>LOG 2>&1` at the top of the
+ * script) since nothing else observes a detached, unref'd child's output —
+ * a silent failure here otherwise just looks like Paseo never reopened.
  *
  * Ports the quit/wait half of the former paseo-repatch script's
  * `quit_patched` and `running_pids`: `osascript` asks the running patched
  * copy to quit by bundle id, then the script polls `pgrep -f` on the bare
- * executable path (anchored, so it never matches a helper the app spawned
- * that is meant to outlive a quit) up to 20 s before giving up.
+ * executable path(s) (anchored, so it never matches a helper the app
+ * spawned that is meant to outlive a quit) up to 60 s before giving up.
+ * Bootstrapping from stock `/Applications/Paseo.app`, the *running* exe
+ * differs from the *target* (`Paseo-Vibrancy.app`) exe the swap is about to
+ * replace, so both are tracked: the wait only ends once neither matches.
  */
 
 import { spawn } from "node:child_process";
@@ -25,14 +31,22 @@ import { STAMP_NAME } from "./build.ts";
 export type SwapOpts = {
   staging: string;
   target: string;
+  /** The currently-running bundle's executable (may differ from `target`'s when bootstrapping from stock Paseo.app). */
+  runningExe?: string;
   trashDir: string;
   quit: boolean;
   open: boolean;
+  logPath?: string;
 };
 
-/** How many 0.5s polls `swapScript` waits for the running app to quit — 20s total, matching `quit_patched`. */
-const QUIT_WAIT_ATTEMPTS = 40;
+export const DEFAULT_SWAP_LOG = join(homedir(), "Library", "Logs", "paseo-glass-swap.log");
+
+/** How many 0.5s polls `swapScript` waits for the running app to quit — 60s total. */
+const QUIT_WAIT_ATTEMPTS = 120;
 const QUIT_WAIT_INTERVAL_SECONDS = "0.5";
+
+/** Shell expression for a timestamp, embedded in every logged step line. */
+const SH_TIMESTAMP = "$(date '+%Y-%m-%dT%H:%M:%S%z')";
 
 /**
  * Quotes `s` as a single POSIX sh word by wrapping it in single quotes and
@@ -49,7 +63,7 @@ function shq(s: string): string {
  * this, a target path containing e.g. `(`, `)`, `+` or `.` would make the
  * pattern match something other than the literal executable path — or fail
  * to match it at all — and the script could swap out from under a still-live
- * Paseo process, or spin for the full 20 s grace period on a process that
+ * Paseo process, or spin for the full 60 s grace period on a process that
  * already quit.
  */
 function escapeRegex(s: string): string {
@@ -58,30 +72,53 @@ function escapeRegex(s: string): string {
 
 /**
  * Builds the POSIX sh script `startSwap` runs detached. With `quit`, it asks
- * the running patched copy to quit and waits up to 20 s for its process to
- * clear before touching anything; if it is still up after the grace period,
- * the script exits 1 and leaves `staging`/`target` untouched. Otherwise (or
- * once the old process has cleared) it trashes any existing `target`, moves
- * `staging` into place, and — if `open` — relaunches it.
+ * the running patched copy to quit and waits up to 60 s for both its own
+ * process and (if `runningExe` differs — bootstrapping from stock Paseo.app)
+ * the currently-running process to clear before touching anything; if
+ * either is still up after the grace period, the script reopens the
+ * previous app (when `open`) and exits 1, leaving `staging`/`target`
+ * untouched. Otherwise (or once the old process has cleared) it trashes any
+ * existing `target`, moves `staging` into place, and — if `open` —
+ * relaunches it. Any failure after the quit request (timed-out wait, a
+ * failed trash-move, a failed staging-move already rolled back) reopens the
+ * previous app — by that point `target` is always back to the old bundle —
+ * when `open` is true.
  */
 export function swapScript(opts: SwapOpts): string {
+  const logPath = opts.logPath ?? DEFAULT_SWAP_LOG;
   const exe = join(opts.target, "Contents", "MacOS", "Paseo");
   const exePattern = `^${escapeRegex(exe)}$`;
+  const runningPattern = opts.runningExe !== undefined ? `^${escapeRegex(opts.runningExe)}$` : null;
+  const dualPattern = runningPattern !== null && runningPattern !== exePattern;
   const trashed = join(opts.trashDir, `Paseo-Vibrancy-${Math.floor(Date.now() / 1000)}.app`);
 
-  const lines = ["trap '' HUP"];
+  const log = (message: string) => `echo "[${SH_TIMESTAMP}] swap: ${message}"`;
+  const reopenOnFailure = opts.open ? [log("reopening previous app"), `open -a ${shq(opts.target)}`] : [];
+
+  const lines = ["trap '' HUP", `exec >>${shq(logPath)} 2>&1`, log("starting")];
 
   if (opts.quit) {
+    lines.push(`PATTERN=${shq(exePattern)}`);
+    if (dualPattern) {
+      lines.push(`RUNNING_PATTERN=${shq(runningPattern!)}`);
+    }
+    const stillRunning = dualPattern
+      ? `pgrep -f "$PATTERN" >/dev/null 2>&1 || pgrep -f "$RUNNING_PATTERN" >/dev/null 2>&1`
+      : `pgrep -f "$PATTERN" >/dev/null 2>&1`;
     lines.push(
-      `PATTERN=${shq(exePattern)}`,
+      log("requesting quit"),
       `osascript -e 'tell application id "sh.paseo.desktop" to quit' >/dev/null 2>&1 || true`,
       `i=0`,
       `while [ "$i" -lt ${QUIT_WAIT_ATTEMPTS} ]; do`,
-      `  pgrep -f "$PATTERN" >/dev/null 2>&1 || break`,
+      dualPattern
+        ? `  pgrep -f "$PATTERN" >/dev/null 2>&1 || pgrep -f "$RUNNING_PATTERN" >/dev/null 2>&1 || break`
+        : `  pgrep -f "$PATTERN" >/dev/null 2>&1 || break`,
       `  i=$((i + 1))`,
       `  sleep ${QUIT_WAIT_INTERVAL_SECONDS}`,
       `done`,
-      `if pgrep -f "$PATTERN" >/dev/null 2>&1; then`,
+      `if ${stillRunning}; then`,
+      `  ${log("quit wait timed out")}`,
+      ...reopenOnFailure.map((line) => `  ${line}`),
       `  exit 1`,
       `fi`,
     );
@@ -91,22 +128,32 @@ export function swapScript(opts: SwapOpts): string {
   // touched, and a failed staging-move (e.g. a dangling `staging` or a
   // read-only `target` parent) restores the trashed copy rather than leaving
   // the bundle half-swapped or the user with no app at all. `target` is never
-  // left holding both the old and new bundle nested inside each other.
+  // left holding both the old and new bundle nested inside each other. Either
+  // failure reopens the (untouched, or restored) previous app at `target`.
   lines.push(`TRASHED=${shq(trashed)}`);
   lines.push(
     `if [ -e ${shq(opts.target)} ]; then`,
-    `  mv ${shq(opts.target)} "$TRASHED" || exit 1`,
+    `  ${log("moving previous app to trash")}`,
+    `  if ! mv ${shq(opts.target)} "$TRASHED"; then`,
+    `    ${log("trash move failed")}`,
+    ...reopenOnFailure.map((line) => `    ${line}`),
+    `    exit 1`,
+    `  fi`,
     `fi`,
+    log("moving staging into place"),
     `if ! mv ${shq(opts.staging)} ${shq(opts.target)}; then`,
+    `  ${log("staging move failed, restoring previous app")}`,
     `  if [ -e "$TRASHED" ]; then`,
     `    mv "$TRASHED" ${shq(opts.target)}`,
     `  fi`,
+    ...reopenOnFailure.map((line) => `  ${line}`),
     `  exit 1`,
     `fi`,
   );
 
+  lines.push(log("complete"));
   if (opts.open) {
-    lines.push(`open -a ${shq(opts.target)}`);
+    lines.push(log("opening updated app"), `open -a ${shq(opts.target)}`);
   }
 
   return lines.join("\n") + "\n";
