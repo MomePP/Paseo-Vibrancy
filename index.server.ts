@@ -1,0 +1,167 @@
+/**
+ * Server entry: registers the five `shared/rpc.ts` contracts against live
+ * (or injected, for tests) release/build/swap dependencies, serialises
+ * builds through a single-flight queue, and keeps the small bits of
+ * in-process state (`latest`, `lastReport`) `glass.status` reports.
+ */
+
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+import type { PluginServerContext } from "@getpaseo/plugin/server";
+import type { PluginCleanup } from "@getpaseo/plugin";
+
+import { DEFAULT_STAGING, appVersion, buildFingerprint, buildStaging as buildStagingDefault } from "./server/build.ts";
+import { DEFAULT_GLASS_FILE, readGlass, writeGlass } from "./server/glass-file.ts";
+import { resolveTerm } from "./server/ghostty.ts";
+import {
+  DEFAULT_CACHE_DIR,
+  cachedPristine as cachedPristineDefault,
+  checkLatest as checkLatestDefault,
+  downloadVerified as downloadVerifiedDefault,
+  fetchRelease as fetchReleaseDefault,
+} from "./server/release.ts";
+import { isGlassBuild, readStamp, runningBundle } from "./server/status.ts";
+import { startSwap as startSwapDefault } from "./server/swap.ts";
+import { buildRpc, checkUpdateRpc, getGlassRpc, setGlassRpc, statusRpc } from "./shared/rpc.ts";
+import type { Release } from "./shared/rpc.ts";
+import type { GlassSettings } from "./shared/glass.ts";
+
+export const DEFAULT_TARGET = join(homedir(), "Applications", "Paseo-Vibrancy.app");
+
+/** Single-flight guard: a second `run` while one is pending rejects immediately, never queues. */
+export class BuildQueue {
+  #busy = false;
+
+  get busy(): boolean {
+    return this.#busy;
+  }
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.#busy) {
+      throw new Error("build already running");
+    }
+    this.#busy = true;
+    try {
+      return await fn();
+    } finally {
+      this.#busy = false;
+    }
+  }
+}
+
+export type GlassHandlerDeps = {
+  glassFile?: string;
+  execPath?: string;
+  staging?: string;
+  target?: string;
+  cacheDir?: string;
+  ghosttyPath?: string;
+  checkLatest?: typeof checkLatestDefault;
+  fetchRelease?: typeof fetchReleaseDefault;
+  downloadVerified?: typeof downloadVerifiedDefault;
+  cachedPristine?: typeof cachedPristineDefault;
+  buildStaging?: typeof buildStagingDefault;
+  startSwap?: typeof startSwapDefault;
+};
+
+type BuildInput = { version?: string; restart: boolean };
+type BuildOutput = { ok: boolean; report: string[]; error: string | null };
+
+/** Builds the five RPC handlers against `deps` (all optional, defaulting to the real filesystem/network). */
+export function createHandlers(deps: GlassHandlerDeps = {}) {
+  const glassFile = deps.glassFile ?? DEFAULT_GLASS_FILE;
+  const execPath = deps.execPath ?? process.execPath;
+  const staging = deps.staging ?? DEFAULT_STAGING;
+  const target = deps.target ?? DEFAULT_TARGET;
+  const cacheDir = deps.cacheDir ?? DEFAULT_CACHE_DIR;
+  const ghosttyPath = deps.ghosttyPath;
+  const doCheckLatest = deps.checkLatest ?? checkLatestDefault;
+  const doFetchRelease = deps.fetchRelease ?? fetchReleaseDefault;
+  const doDownloadVerified = deps.downloadVerified ?? downloadVerifiedDefault;
+  const doCachedPristine = deps.cachedPristine ?? cachedPristineDefault;
+  const doBuildStaging = deps.buildStaging ?? buildStagingDefault;
+  const doStartSwap = deps.startSwap ?? startSwapDefault;
+
+  const queue = new BuildQueue();
+  let latest: Release | null = null;
+  let lastReport: string[] = [];
+
+  async function status() {
+    const bundle = runningBundle(execPath);
+    const stamp = bundle ? readStamp(bundle) : null;
+    let runningVersion: string | null = null;
+    if (bundle) {
+      try {
+        runningVersion = appVersion(bundle);
+      } catch {
+        runningVersion = null;
+      }
+    }
+    return {
+      runningVersion,
+      runningGlassBuild: bundle !== null && isGlassBuild(bundle),
+      builtFrom: stamp?.version ?? null,
+      fingerprintMatches: stamp !== null && stamp.fingerprint === buildFingerprint(resolveTerm(ghosttyPath).term),
+      latest,
+      lastReport,
+      building: queue.busy,
+    };
+  }
+
+  async function checkUpdate() {
+    const result = await doCheckLatest();
+    if (result.release) {
+      latest = result.release;
+    }
+    return result;
+  }
+
+  /**
+   * `version` defaults to the running bundle's version (client omits it for
+   * "Rebuild", passes the checked `latest.version` for "Update"). Errors —
+   * including the queue rejecting a concurrent call — are reported, never
+   * thrown, so a failed build never surfaces as an unhandled rejection.
+   */
+  async function build(input: BuildInput): Promise<BuildOutput> {
+    try {
+      return await queue.run(async () => {
+        const bundle = runningBundle(execPath);
+        const version = input.version ?? (bundle ? appVersion(bundle) : undefined);
+        if (!version) {
+          throw new Error("no version to build: nothing running and none requested");
+        }
+        const source = doCachedPristine(version, cacheDir) ?? (await doDownloadVerified(await doFetchRelease(version), cacheDir));
+        const { report } = await doBuildStaging({ source, staging, ghosttyPath });
+        lastReport = report;
+        if (input.restart) {
+          doStartSwap({ staging, target, quit: true, open: true });
+        }
+        return { ok: true, report, error: null };
+      });
+    } catch (error) {
+      return { ok: false, report: [], error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  async function getGlass(): Promise<GlassSettings> {
+    return readGlass(glassFile);
+  }
+
+  async function setGlass(settings: GlassSettings): Promise<GlassSettings> {
+    writeGlass(settings, glassFile);
+    return settings;
+  }
+
+  return { status, checkUpdate, build, getGlass, setGlass, queue };
+}
+
+export default function contribute(server: PluginServerContext): PluginCleanup {
+  const handlers = createHandlers();
+  server.handle(statusRpc, async () => handlers.status());
+  server.handle(checkUpdateRpc, async () => handlers.checkUpdate());
+  server.handle(buildRpc, async (input) => handlers.build(input));
+  server.handle(getGlassRpc, async () => handlers.getGlass());
+  server.handle(setGlassRpc, async (input) => handlers.setGlass(input));
+  return () => {};
+}
