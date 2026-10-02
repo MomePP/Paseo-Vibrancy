@@ -1,0 +1,6 @@
+# a comment line
+font-family = Maple Mono NF
+font-family = Noto Sans Mono
+cursor-style = block
+
+adjust-cell-height = 8%
