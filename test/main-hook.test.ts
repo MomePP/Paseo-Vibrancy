@@ -175,17 +175,31 @@ test("file change re-applies to open windows", async (t) => {
   const win = makeWindow();
   sandbox.fireBrowserWindowCreated(win);
 
-  writeFileSync(join(dir, "paseo-glass.json"), JSON.stringify({ material: "sidebar" }));
+  const settingsFile = join(dir, "paseo-glass.json");
+  const payload = JSON.stringify({ material: "sidebar" });
+
   // Real waits (not fake timers): PG_JS's own fs.watch + 50 ms debounce run on
   // the host event loop inside a vm context we don't control the clock of, so
   // this polls for the real platform fs.watch -> setTimeout signal instead of
-  // guessing a fixed duration.
+  // guessing a fixed duration. macOS's FSEvents-backed fs.watch can also miss
+  // a write that lands before the watch stream has finished arming, so the
+  // write is reissued every 200 ms until the effect is observed rather than
+  // relying on the very first write landing.
   const deadline = Date.now() + 2000;
+  let lastWriteAt = 0;
   while (win.vibrancyCalls.at(-1) !== "sidebar" && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    if (Date.now() - lastWriteAt >= 200) {
+      writeFileSync(settingsFile, payload);
+      lastWriteAt = Date.now();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
   }
 
-  assert.equal(win.vibrancyCalls.at(-1), "sidebar");
+  assert.equal(
+    win.vibrancyCalls.at(-1),
+    "sidebar",
+    `timed out after 2s waiting for the debounced fs.watch re-apply; calls so far: ${JSON.stringify(win.vibrancyCalls)}`,
+  );
 });
 
 test("module export is true", (t) => {
