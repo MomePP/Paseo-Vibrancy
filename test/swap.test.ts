@@ -169,9 +169,9 @@ test("swapScript quits the running copy and waits for it to clear, but omits tha
 
   const withQuit = swapScript({ ...opts, quit: true });
   assert.match(withQuit, /tell application id "sh\.paseo\.desktop" to quit/);
-  assert.match(withQuit, /pgrep -f "\$PATTERN"/);
+  assert.match(withQuit, /pgrep -a -f "\$PATTERN"/);
   assert.match(withQuit, /PATTERN='\^\/tmp\/target\\\.app\/Contents\/MacOS\/Paseo\$'/);
-  assert.match(withQuit, /^if pgrep -f "\$PATTERN".*\n {2}echo .*\n {2}exit 1\nfi$/m);
+  assert.match(withQuit, /^if pgrep -a -f "\$PATTERN".*\n {2}echo .*\n {2}exit 1\nfi$/m);
 
   const withoutQuit = swapScript({ ...opts, quit: false });
   assert.doesNotMatch(withoutQuit, /osascript/);
@@ -189,7 +189,7 @@ test("quit wait tracks both the target's and the currently-running bundle's exec
   });
   assert.match(withBoth, /PATTERN='\^\/tmp\/Paseo-Vibrancy\\\.app\/Contents\/MacOS\/Paseo\$'/);
   assert.match(withBoth, /RUNNING_PATTERN='\^\/Applications\/Paseo\\\.app\/Contents\/MacOS\/Paseo\$'/);
-  assert.match(withBoth, /pgrep -f "\$PATTERN" >\/dev\/null 2>&1 \|\| pgrep -f "\$RUNNING_PATTERN" >\/dev\/null 2>&1 \|\| break/);
+  assert.match(withBoth, /pgrep -a -f "\$PATTERN" >\/dev\/null 2>&1 \|\| pgrep -a -f "\$RUNNING_PATTERN" >\/dev\/null 2>&1 \|\| break/);
   assert.equal(spawnSync("/bin/sh", ["-n", "-c", withBoth]).status, 0, "generated script must be valid POSIX sh");
 
   // runningExe identical to the target's own exe: no second pattern needed.
@@ -337,4 +337,30 @@ test("launchEnv drops Electron's variables so `open -a` launches a GUI app, not 
     PATH: "/usr/bin:/bin",
   });
   assert.deepEqual(env, { HOME: "/Users/someone", PATH: "/usr/bin:/bin" });
+});
+
+test("the quit wait sees the running app even when the script descends from it", (t) => {
+  // The swap script runs under Paseo's own process tree (app -> supervisor ->
+  // daemon -> plugin -> script), and macOS pgrep leaves out its ancestors
+  // unless told otherwise — so the wait used to end at once while Paseo was
+  // still quitting. Run the script's own "still running?" check as a child of
+  // a binary sitting at the target's executable path.
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-ancestor-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const target = join(dir, "Fake.app");
+  const exe = join(target, "Contents", "MacOS", "Paseo");
+  mkdirSync(join(target, "Contents", "MacOS"), { recursive: true });
+  const compiled = spawnSync(
+    "xcrun",
+    ["clang", "-x", "c", "-o", exe, "-"],
+    { input: '#include <stdlib.h>\nint main(void){return system(getenv("CHECK"))==0?0:1;}\n' },
+  );
+  assert.equal(compiled.status, 0, String(compiled.stderr));
+
+  const script = swapScript({ staging: join(dir, "s.app"), target, trashDir: dir, quit: true, open: false });
+  const pattern = script.match(/^PATTERN=.*$/m)![0];
+  const check = script.match(/^if (.*); then$/m)![1];
+
+  const run = spawnSync(exe, [], { env: { ...process.env, CHECK: `${pattern}; ${check}` } });
+  assert.equal(run.status, 0, "the check must find the ancestor process running at the target path");
 });

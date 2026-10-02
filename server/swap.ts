@@ -106,17 +106,18 @@ export function swapScript(opts: SwapOpts): string {
     if (dualPattern) {
       lines.push(`RUNNING_PATTERN=${shq(runningPattern!)}`);
     }
+    // `-a`: the script descends from the running Paseo (app -> supervisor ->
+    // daemon -> plugin -> script), and macOS pgrep skips its own ancestors
+    // without it — the wait would end at once while Paseo is still quitting.
     const stillRunning = dualPattern
-      ? `pgrep -f "$PATTERN" >/dev/null 2>&1 || pgrep -f "$RUNNING_PATTERN" >/dev/null 2>&1`
-      : `pgrep -f "$PATTERN" >/dev/null 2>&1`;
+      ? `pgrep -a -f "$PATTERN" >/dev/null 2>&1 || pgrep -a -f "$RUNNING_PATTERN" >/dev/null 2>&1`
+      : `pgrep -a -f "$PATTERN" >/dev/null 2>&1`;
     lines.push(
       log("requesting quit"),
       `osascript -e 'tell application id "sh.paseo.desktop" to quit' >/dev/null 2>&1 || true`,
       `i=0`,
       `while [ "$i" -lt ${QUIT_WAIT_ATTEMPTS} ]; do`,
-      dualPattern
-        ? `  pgrep -f "$PATTERN" >/dev/null 2>&1 || pgrep -f "$RUNNING_PATTERN" >/dev/null 2>&1 || break`
-        : `  pgrep -f "$PATTERN" >/dev/null 2>&1 || break`,
+      `  ${stillRunning} || break`,
       `  i=$((i + 1))`,
       `  sleep ${QUIT_WAIT_INTERVAL_SECONDS}`,
       `done`,

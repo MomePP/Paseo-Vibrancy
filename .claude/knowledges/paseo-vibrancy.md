@@ -224,7 +224,7 @@ script) — nothing else observes a detached, unref'd child's output, so
 without the log a silent failure here just looks like Paseo never reopened.
 
 With `quit: true` it asks the running patched copy to quit by bundle id
-(`osascript … quit`), then polls `pgrep -f` on the bare executable
+(`osascript … quit`), then polls `pgrep -a -f` on the bare executable
 path(s) — anchored (`^…$`) and regex-escaped, so a path containing `(`, `)`,
 `+` or `.` still matches only itself — up to 60 s (120 × 0.5 s) before
 giving up. Bootstrapping from stock `/Applications/Paseo.app`, the
@@ -280,6 +280,13 @@ update completing).
   runtime. Get both modules from `process.getBuiltinModule` — a default or
   namespace import of `node:fs` makes Paseo's plugin bundler read every
   export and log `fs.F_OK` deprecation warnings.
+- **The quit wait needs `pgrep -a`.** The swap script descends from the
+  running Paseo (app -> supervisor -> daemon -> plugin -> script), and macOS
+  `pgrep` leaves out its own ancestors unless given `-a`. Without it the wait
+  ended at once, the new copy opened while the old Paseo was still quitting,
+  and it attached to the old copy's daemon: killing that daemon left the new
+  copy stuck on "reconnecting to host". `test/swap.test.ts` runs the real
+  check under a binary sitting at the target's executable path.
 - **The swap script must not inherit `ELECTRON_*` variables.** The plugin
   server inherits the daemon's ELECTRON_RUN_AS_NODE=1, and `open -a` hands
   the caller's environment to the app it launches: a Paseo started that way
