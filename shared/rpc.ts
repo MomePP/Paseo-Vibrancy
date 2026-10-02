@@ -12,18 +12,22 @@ export const ReleaseSchema = z.object({
 
 export type Release = z.infer<typeof ReleaseSchema>;
 
+export const GlassStatusSchema = z.object({
+  runningVersion: z.string().nullable(),
+  runningGlassBuild: z.boolean(),
+  builtFrom: z.string().nullable(),
+  fingerprintMatches: z.boolean(),
+  latest: ReleaseSchema.nullable(),
+  lastReport: z.array(z.string()),
+  building: z.boolean(),
+});
+
+export type GlassStatus = z.infer<typeof GlassStatusSchema>;
+
 export const statusRpc = defineRpc({
   name: "glass.status",
   input: z.object({}),
-  output: z.object({
-    runningVersion: z.string().nullable(),
-    runningGlassBuild: z.boolean(),
-    builtFrom: z.string().nullable(),
-    fingerprintMatches: z.boolean(),
-    latest: ReleaseSchema.nullable(),
-    lastReport: z.array(z.string()),
-    building: z.boolean(),
-  }),
+  output: GlassStatusSchema,
 });
 
 export const checkUpdateRpc = defineRpc({

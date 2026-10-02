@@ -24,7 +24,7 @@ import type { Release } from "../shared/rpc.ts";
 
 const execFileAsync = promisify(execFile);
 const fixtureYml = readFileSync(
-  join(fileURLToPath(new URL(".", import.meta.url)), "fixtures", "beta3-mac.yml"),
+  join(fileURLToPath(new URL(".", import.meta.url).href), "fixtures", "beta3-mac.yml"),
   "utf8",
 );
 
