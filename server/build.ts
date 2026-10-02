@@ -1,0 +1,174 @@
+/**
+ * Ports `main`'s build half from `bin/paseo-repatch` (lines 1305-1362): `ditto`
+ * a pristine source into the staging bundle, apply every patch from
+ * `asar.ts`/`patch-renderer.ts`/`main-hook.ts`/`blur.ts`, neuter the updater,
+ * set the asar-integrity hash, stamp, and ad-hoc sign. Release fetch/verify
+ * (Task 5) and the staging-to-live swap (Task 7) are separate modules; this
+ * one only ever writes into `staging`, never the live copy.
+ */
+
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+import { ASAR_HOOK_LINE, patchAsar } from "./asar.ts";
+import { BLUR_M, compileBlur } from "./blur.ts";
+import { resolveTerm } from "./ghostty.ts";
+import type { TermMetrics } from "./ghostty.ts";
+import { PG_JS } from "./main-hook.ts";
+import { patchIndexHtml, patchRenderer, rendererPath } from "./patch-renderer.ts";
+import { BUILD_TABLES } from "./renderer-patches.ts";
+
+const execFileAsync = promisify(execFile);
+
+export const DEFAULT_STAGING = join(homedir(), "Applications", ".Paseo-Vibrancy.staging.app");
+
+export const STAMP_NAME = ".glass-build";
+
+// electron-updater reads this from the bundle. Pointing it at an address that
+// cannot resolve turns the update check into a logged failure instead of a
+// download that would overwrite the patches — and, on macOS, would be
+// rejected against the ad-hoc signature anyway. Maintained here rather than
+// in bin/paseo-repatch: rebuilding now happens from Settings -> Glass.
+export const DEAD_UPDATE_YML = `# neutered by the Paseo Glass plugin: this copy must never self-update.
+# Update the stock Paseo.app, then rebuild from Settings -> Glass.
+provider: generic
+url: https://127.0.0.1:1/paseo-glass-disabled/
+updaterCacheDirName: '@getpaseodesktop-updater'
+`;
+
+/**
+ * Over `BUILD_TABLES` (every renderer/index.html patch table and constant),
+ * `ASAR_HOOK_LINE`, `PG_JS`, `BLUR_M` and the resolved terminal metrics: any
+ * edit to a patch, the main-process hook, the blur addon, or the Ghostty
+ * derivation changes this, the same way a script edit changed paseo-repatch's
+ * stamp. RegExp values serialise as `{source, flags}` — `JSON.stringify`
+ * otherwise drops them as `{}`.
+ */
+export function buildFingerprint(term: TermMetrics): string {
+  const payload = JSON.stringify(
+    { BUILD_TABLES, ASAR_HOOK_LINE, PG_JS, BLUR_M, term },
+    (_key, value) => (value instanceof RegExp ? { source: value.source, flags: value.flags } : value),
+  );
+  return createHash("sha256").update(payload).digest("hex").slice(0, 12);
+}
+
+export function stampFor(version: string, fingerprint: string): string {
+  return `${version}|glass=${fingerprint}`;
+}
+
+/** Reads `CFBundleShortVersionString` out of the bundle's Info.plist. */
+export function appVersion(app: string): string {
+  const plist = readFileSync(join(app, "Contents", "Info.plist"), "utf8");
+  const match = plist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]*)<\/string>/);
+  if (!match) {
+    throw new Error(`appVersion: CFBundleShortVersionString not found in ${app}/Contents/Info.plist`);
+  }
+  return match[1]!;
+}
+
+/**
+ * Builds a signed, patched copy of `opts.source` at `opts.staging`
+ * (`~/Applications/.Paseo-Vibrancy.staging.app` by default). Any thrown error
+ * — a missing `app.asar`, an occurrence-count mismatch, a failed codesign —
+ * deletes the partial staging bundle before rethrowing, so a failed build
+ * never leaves a half-patched copy behind.
+ */
+export async function buildStaging(opts: {
+  source: string;
+  staging?: string;
+  ghosttyPath?: string;
+}): Promise<{ report: string[]; missed: boolean }> {
+  const staging = opts.staging ?? DEFAULT_STAGING;
+  const report: string[] = [];
+
+  try {
+    await rm(staging, { recursive: true, force: true });
+    await execFileAsync("ditto", [opts.source, staging]);
+
+    // 2. asar: same-length patches, hashed afterward for the Info.plist
+    // integrity key Electron checks before it will load the archive.
+    const asarPath = join(staging, "Contents", "Resources", "app.asar");
+    const asarData = await readFile(asarPath);
+    const { data: patchedAsar, notes: asarNotes } = patchAsar(asarData);
+    await writeFile(asarPath, patchedAsar);
+    report.push(...asarNotes);
+    const asarDigest = createHash("sha256").update(patchedAsar).digest("hex");
+
+    // 3. Renderer bundle + index.html. Term is resolved here (read, not
+    // reported yet) so the renderer patch has the metrics it needs; its
+    // notes land after the html notes to match the report's fixed order.
+    const { term, notes: ghosttyNotes } = resolveTerm(opts.ghosttyPath);
+
+    const bundlePath = rendererPath(staging);
+    const rendererSrc = await readFile(bundlePath, "utf8");
+    const { src: patchedSrc, notes: rendererNotes } = patchRenderer(rendererSrc, term);
+    await writeFile(bundlePath, patchedSrc, "utf8");
+    report.push(...rendererNotes);
+
+    const htmlPath = join(staging, "Contents", "Resources", "app-dist", "index.html");
+    const htmlSrc = await readFile(htmlPath, "utf8");
+    const { html: patchedHtml, notes: htmlNotes } = patchIndexHtml(htmlSrc, term.padding);
+    await writeFile(htmlPath, patchedHtml, "utf8");
+    report.push(...htmlNotes);
+
+    report.push(...ghosttyNotes);
+
+    // 4. pg.js (no note of its own — the hook it enables is the asar note
+    // above) and blur.node.
+    await writeFile(join(staging, "Contents", "Resources", "pg.js"), PG_JS, "utf8");
+    const blurNote = await compileBlur(join(staging, "Contents", "Resources", "blur.node"));
+    report.push(blurNote);
+
+    // 5. app-update.yml -> dead provider. Asserted like every other patch
+    // rather than written blind: if Paseo ever moves this file into the
+    // asar or renames it, a blind write would leave a stray file at the
+    // dead path, report success, and let the real updater go on
+    // overwriting the copy.
+    const updaterPath = join(staging, "Contents", "Resources", "app-update.yml");
+    if (existsSync(updaterPath)) {
+      await writeFile(updaterPath, DEAD_UPDATE_YML, "utf8");
+      report.push("ok      updater neutered");
+    } else {
+      report.push("MISSED  updater neutered: app-update.yml not found");
+    }
+
+    const missed = report.some((note) => note.startsWith("MISSED"));
+
+    // 6. Electron refuses to load an asar whose hash does not match this
+    // key, and the key name contains a dot, so PlistBuddy (`:` separated)
+    // is required — `plutil -replace` would read "Resources/app.asar" as
+    // two nested keys.
+    await execFileAsync("/usr/libexec/PlistBuddy", [
+      "-c",
+      `Set :ElectronAsarIntegrity:Resources/app.asar:hash ${asarDigest}`,
+      join(staging, "Contents", "Info.plist"),
+    ]);
+
+    // Stamp written before the signature, not after: the stamp lands in
+    // Contents/Resources, and anything added there once the bundle is
+    // sealed makes `codesign --verify` report a missing sealed resource.
+    const version = appVersion(staging);
+    const fingerprint = buildFingerprint(term);
+    const want = stampFor(version, fingerprint);
+    await writeFile(
+      join(staging, "Contents", "Resources", STAMP_NAME),
+      want + (missed ? "\nmissed" : "") + "\n",
+      "utf8",
+    );
+
+    // Editing anything under Contents/ invalidates the Developer ID
+    // signature, and the hardened runtime means the app will not launch
+    // unsigned.
+    await execFileAsync("codesign", ["--force", "--deep", "--sign", "-", staging]);
+
+    return { report, missed };
+  } catch (error) {
+    await rm(staging, { recursive: true, force: true });
+    throw error;
+  }
+}
