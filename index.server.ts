@@ -171,7 +171,7 @@ export function createHandlers(deps: GlassHandlerDeps = {}) {
       lastError = null;
       if (input.restart) {
         const runningExe = bundle ? join(bundle, "Contents", "MacOS", execName(bundle)) : undefined;
-        doStartSwap({ staging, target, quit: true, open: true, runningExe });
+        doStartSwap({ staging, target, quit: true, open: true, runningExe, previousApp: bundle ?? undefined });
       }
     } catch (error) {
       lastReport = reportFromError(error);

@@ -218,6 +218,21 @@ test("every failure branch after the quit request reopens the previous app when 
   assert.equal(spawnSync("/bin/sh", ["-n", "-c", script]).status, 0, "generated script must be valid POSIX sh");
 });
 
+test("failure branches reopen the app that was running, not the new target, when bootstrapping", () => {
+  const script = swapScript({
+    staging: "/tmp/staging.app",
+    target: "/tmp/target.app",
+    previousApp: "/Applications/Paseo.app",
+    trashDir: "/tmp/trash",
+    quit: true,
+    open: true,
+  });
+  // quit-timeout, trash-move-failed, staging-move-failed reopen stock Paseo;
+  // only the success path opens the freshly swapped-in target.
+  assert.equal([...script.matchAll(/open -a '\/Applications\/Paseo\.app'/g)].length, 3);
+  assert.equal([...script.matchAll(/open -a '\/tmp\/target\.app'/g)].length, 1);
+});
+
 test("logs timestamped steps and the failure reason to logPath", () => {
   const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
   try {

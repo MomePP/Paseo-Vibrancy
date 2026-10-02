@@ -33,6 +33,8 @@ export type SwapOpts = {
   target: string;
   /** The currently-running bundle's executable (may differ from `target`'s when bootstrapping from stock Paseo.app). */
   runningExe?: string;
+  /** The app to reopen if the swap fails after quitting; defaults to `target`. Stock Paseo.app when bootstrapping. */
+  previousApp?: string;
   trashDir: string;
   quit: boolean;
   open: boolean;
@@ -80,9 +82,9 @@ function escapeRegex(s: string): string {
  * untouched. Otherwise (or once the old process has cleared) it trashes any
  * existing `target`, moves `staging` into place, and — if `open` —
  * relaunches it. Any failure after the quit request (timed-out wait, a
- * failed trash-move, a failed staging-move already rolled back) reopens the
- * previous app — by that point `target` is always back to the old bundle —
- * when `open` is true.
+ * failed trash-move, a failed staging-move already rolled back) reopens
+ * `previousApp` — the app that was running, which is `target` itself except
+ * when bootstrapping from stock Paseo.app — when `open` is true.
  */
 export function swapScript(opts: SwapOpts): string {
   const logPath = opts.logPath ?? DEFAULT_SWAP_LOG;
@@ -93,7 +95,9 @@ export function swapScript(opts: SwapOpts): string {
   const trashed = join(opts.trashDir, `Paseo-Vibrancy-${Math.floor(Date.now() / 1000)}.app`);
 
   const log = (message: string) => `echo "[${SH_TIMESTAMP}] swap: ${message}"`;
-  const reopenOnFailure = opts.open ? [log("reopening previous app"), `open -a ${shq(opts.target)}`] : [];
+  const reopenOnFailure = opts.open
+    ? [log("reopening previous app"), `open -a ${shq(opts.previousApp ?? opts.target)}`]
+    : [];
 
   const lines = ["trap '' HUP", `exec >>${shq(logPath)} 2>&1`, log("starting")];
 
@@ -129,7 +133,7 @@ export function swapScript(opts: SwapOpts): string {
   // read-only `target` parent) restores the trashed copy rather than leaving
   // the bundle half-swapped or the user with no app at all. `target` is never
   // left holding both the old and new bundle nested inside each other. Either
-  // failure reopens the (untouched, or restored) previous app at `target`.
+  // failure reopens the previous app (see `previousApp`).
   lines.push(`TRASHED=${shq(trashed)}`);
   lines.push(
     `if [ -e ${shq(opts.target)} ]; then`,
