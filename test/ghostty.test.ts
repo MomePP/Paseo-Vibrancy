@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { ghosttyMetrics, readGhostty, resolveTerm, GHOSTTY_FONT_STYLES } from "../server/ghostty.ts";
 import { TERMINAL_DEFAULTS } from "../shared/vibrancy.ts";
@@ -94,4 +97,29 @@ test("resolveTerm with a missing Ghostty file uses the settings and overrides no
   assert.equal(term.lineHeight, 1.1);
   assert.equal(term.fontFamily, null);
   assert.deepEqual(overriddenByGhostty, []);
+});
+
+test("ghosttyMetrics maps block_hollow to block", () => {
+  const { metrics, notes } = ghosttyMetrics({ "cursor-style": ["block_hollow"] });
+  assert.equal(metrics.cursorStyle, "block");
+  assert.deepEqual(notes, []);
+});
+
+test("an unsupported Ghostty cursor-style leaves the saved setting in control and is not an override", () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-ghostty-"));
+  try {
+    const file = join(dir, "config");
+    writeFileSync(file, "cursor-style = bogus\n");
+    const { term, notes, overriddenByGhostty } = resolveTerm({ ...TERMINAL_DEFAULTS, cursorStyle: "underline" }, file);
+    assert.equal(term.cursorStyle, "underline");
+    assert.deepEqual(overriddenByGhostty, []);
+    assert.equal(notes.filter((n) => n.includes("cursor-style 'bogus'")).length, 1);
+
+    writeFileSync(file, "cursor-style = block_hollow\n");
+    const hollow = resolveTerm({ ...TERMINAL_DEFAULTS, cursorStyle: "underline" }, file);
+    assert.equal(hollow.term.cursorStyle, "block");
+    assert.deepEqual(hollow.overriddenByGhostty, ["cursorStyle"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

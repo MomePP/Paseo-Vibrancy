@@ -1,7 +1,7 @@
 /**
  * Ports the Ghostty-config terminal metrics logic from the former
- * paseo-repatch script (`read_ghostty`/`ghostty_metrics`, plus the
- * fallback constants and `GHOSTTY_FONT_STYLES` table, and the precedence its
+ * paseo-repatch script (`read_ghostty`/`ghostty_metrics`, the
+ * `GHOSTTY_FONT_STYLES` table, and the precedence its
  * `main()` applied when resolving `term`, minus the CLI-flag layer, which
  * this plugin has no equivalent of).
  */
@@ -30,7 +30,7 @@ export const GHOSTTY_PATH = join(homedir(), ".config", "ghostty", "config");
 // Ghostty names a face by its style; xterm names one by CSS weight. These are
 // the style names font vendors actually ship, on the scale they correspond
 // to. Ghostty's own sentinels (`default`, `false`) are deliberately absent —
-// neither is a weight, and both fall through to the constants above.
+// neither is a weight, and both fall through to the saved setting.
 export const GHOSTTY_FONT_STYLES: Record<string, number> = {
   thin: 100,
   extralight: 200,
@@ -74,7 +74,15 @@ export function ghosttyMetrics(
   const notes: string[] = [];
 
   if (cfg["cursor-style"]) {
-    metrics.cursorStyle = cfg["cursor-style"].at(-1);
+    const raw = cfg["cursor-style"].at(-1)!;
+    // Ghostty's `block_hollow` has no xterm equivalent; `block` is closest.
+    // Anything else xterm would reject (typos included) is left to the setting.
+    const style = raw === "block_hollow" ? "block" : raw;
+    if (style === "bar" || style === "block" || style === "underline") {
+      metrics.cursorStyle = style;
+    } else {
+      notes.push(`        ghostty cursor-style '${raw}' is not supported by xterm, using the saved setting`);
+    }
   }
 
   if (cfg["font-family"]) {
@@ -89,7 +97,7 @@ export function ghosttyMetrics(
       const raw = cfg[key].at(-1)!;
       const weight = GHOSTTY_FONT_STYLES[raw.toLowerCase().replace(/[\s_-]/g, "")];
       if (weight === undefined) {
-        notes.push(`        ghostty ${key} '${raw}' has no CSS weight, using default`);
+        notes.push(`        ghostty ${key} '${raw}' has no CSS weight, using the saved setting`);
       } else {
         metrics[slot] = weight;
       }
@@ -104,7 +112,7 @@ export function ghosttyMetrics(
     if (raw.endsWith("%")) {
       metrics.lineHeight = Math.round((1 + parseFloat(raw.slice(0, -1)) / 100) * 1000) / 1000;
     } else {
-      notes.push(`        ghostty adjust-cell-height '${raw}' is not a %, using default`);
+      notes.push(`        ghostty adjust-cell-height '${raw}' is not a %, using the saved setting`);
     }
   }
 
