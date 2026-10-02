@@ -27,7 +27,7 @@ export const statusRpc = defineRpc({
 });
 
 export const checkUpdateRpc = defineRpc({
-  name: "glass.checkUpdate",
+  name: "glass.check-update",
   input: z.object({}),
   output: z.object({
     release: ReleaseSchema.nullable(),
@@ -49,13 +49,13 @@ export const buildRpc = defineRpc({
 });
 
 export const getGlassRpc = defineRpc({
-  name: "glass.getGlass",
+  name: "glass.get-glass",
   input: z.object({}),
   output: GlassSettingsSchema,
 });
 
 export const setGlassRpc = defineRpc({
-  name: "glass.setGlass",
+  name: "glass.set-glass",
   input: GlassSettingsSchema,
   output: GlassSettingsSchema,
 });
