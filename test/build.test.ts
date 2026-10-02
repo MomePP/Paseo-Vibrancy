@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { buildFingerprint, buildStaging, stampFor } from "../server/build.ts";
+import { buildFingerprint, buildStaging, serialiseFingerprintInputs, stampFor } from "../server/build.ts";
 import type { TermMetrics } from "../server/ghostty.ts";
 
 const execFileAsync = promisify(execFile);
@@ -27,6 +27,13 @@ test("buildFingerprint changes with term", () => {
   assert.notEqual(a, b);
   assert.equal(a, buildFingerprint({ ...BASE_TERM }));
   assert.match(a, /^[0-9a-f]{12}$/);
+});
+
+test("fingerprint serialisation is sensitive to DEAD_UPDATE_YML, ASAR_HOOK_ANCHOR and BLUR_CLANG_ARGS", () => {
+  const base = serialiseFingerprintInputs(BASE_TERM);
+  assert.notEqual(base, serialiseFingerprintInputs(BASE_TERM, { deadUpdateYml: "something else" }));
+  assert.notEqual(base, serialiseFingerprintInputs(BASE_TERM, { asarHookAnchor: "something else" }));
+  assert.notEqual(base, serialiseFingerprintInputs(BASE_TERM, { blurClangArgs: ["something", "else"] }));
 });
 
 test('stampFor joins version and fingerprint as "<ver>|glass=<hash>"', () => {

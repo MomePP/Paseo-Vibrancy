@@ -99,6 +99,25 @@ napi_value napi_register_module_v1(napi_env env, napi_value exports) {
 `;
 
 /**
+ * `xcrun clang` flags `compileBlur` invokes with — exported so Task 6's
+ * `buildFingerprint` can hash them: a flag change (e.g. a different target
+ * framework) changes the bytes `compileBlur` produces just as surely as an
+ * edit to `BLUR_M` does, and the stamp must catch both.
+ */
+export const BLUR_CLANG_ARGS = [
+  "clang",
+  "-bundle",
+  "-undefined",
+  "dynamic_lookup",
+  "-framework",
+  "AppKit",
+  "-fobjc-arc",
+  "-x",
+  "objective-c",
+  "-o",
+] as const;
+
+/**
  * Compiles `BLUR_M` to `destPath` with `xcrun clang`, piping the source on stdin
  * so no temp `.m` file is needed. Returns a `patchAsar`-style note: `MISSED` with
  * the compiler's stderr (or the spawn error) on failure, `ok` on success.
@@ -107,20 +126,7 @@ export function compileBlur(destPath: string): Promise<string> {
   const { promise, resolve } = Promise.withResolvers<string>();
   const child = execFile(
     "xcrun",
-    [
-      "clang",
-      "-bundle",
-      "-undefined",
-      "dynamic_lookup",
-      "-framework",
-      "AppKit",
-      "-fobjc-arc",
-      "-x",
-      "objective-c",
-      "-o",
-      destPath,
-      "-",
-    ],
+    [...BLUR_CLANG_ARGS, destPath, "-"],
     (error, _stdout, stderr) => {
       if (error) {
         resolve(`MISSED  window blur: ${stderr.trim() || error.message}`);

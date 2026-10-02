@@ -15,8 +15,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { ASAR_HOOK_LINE, patchAsar } from "./asar.ts";
-import { BLUR_M, compileBlur } from "./blur.ts";
+import { ASAR_HOOK_ANCHOR, ASAR_HOOK_LINE, patchAsar } from "./asar.ts";
+import { BLUR_CLANG_ARGS, BLUR_M, compileBlur } from "./blur.ts";
 import { resolveTerm } from "./ghostty.ts";
 import type { TermMetrics } from "./ghostty.ts";
 import { PG_JS } from "./main-hook.ts";
@@ -42,19 +42,43 @@ updaterCacheDirName: '@getpaseodesktop-updater'
 `;
 
 /**
- * Over `BUILD_TABLES` (every renderer/index.html patch table and constant),
- * `ASAR_HOOK_LINE`, `PG_JS`, `BLUR_M` and the resolved terminal metrics: any
- * edit to a patch, the main-process hook, the blur addon, or the Ghostty
- * derivation changes this, the same way a script edit changed paseo-repatch's
- * stamp. RegExp values serialise as `{source, flags}` — `JSON.stringify`
- * otherwise drops them as `{}`.
+ * Serialises every byte-affecting build input for `buildFingerprint`:
+ * `BUILD_TABLES` (every renderer/index.html patch table and constant),
+ * `ASAR_HOOK_LINE`/`ASAR_HOOK_ANCHOR` (the anchor's length decides the
+ * asar's space-padding), `PG_JS`, `BLUR_M`/`BLUR_CLANG_ARGS`,
+ * `DEAD_UPDATE_YML`, and the resolved terminal metrics — an edit to a patch,
+ * the main-process hook, the blur addon or its compiler flags, the updater
+ * neutering text, or the Ghostty derivation all land here. RegExp values
+ * serialise as `{source, flags}` — plain `JSON.stringify` otherwise drops
+ * them as `{}`. `overrides` exists only so tests can prove each field is
+ * actually hashed, without reaching for module-mocking to swap a `const`;
+ * `buildFingerprint` itself never passes any.
  */
-export function buildFingerprint(term: TermMetrics): string {
-  const payload = JSON.stringify(
-    { BUILD_TABLES, ASAR_HOOK_LINE, PG_JS, BLUR_M, term },
+export function serialiseFingerprintInputs(
+  term: TermMetrics,
+  overrides: {
+    asarHookAnchor?: string;
+    deadUpdateYml?: string;
+    blurClangArgs?: readonly string[];
+  } = {},
+): string {
+  return JSON.stringify(
+    {
+      BUILD_TABLES,
+      ASAR_HOOK_LINE,
+      ASAR_HOOK_ANCHOR: overrides.asarHookAnchor ?? ASAR_HOOK_ANCHOR,
+      PG_JS,
+      BLUR_M,
+      BLUR_CLANG_ARGS: overrides.blurClangArgs ?? BLUR_CLANG_ARGS,
+      DEAD_UPDATE_YML: overrides.deadUpdateYml ?? DEAD_UPDATE_YML,
+      term,
+    },
     (_key, value) => (value instanceof RegExp ? { source: value.source, flags: value.flags } : value),
   );
-  return createHash("sha256").update(payload).digest("hex").slice(0, 12);
+}
+
+export function buildFingerprint(term: TermMetrics): string {
+  return createHash("sha256").update(serialiseFingerprintInputs(term)).digest("hex").slice(0, 12);
 }
 
 export function stampFor(version: string, fingerprint: string): string {
