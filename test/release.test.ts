@@ -11,7 +11,6 @@ import { fileURLToPath } from "node:url";
 import {
   cachedPristine,
   checkLatest,
-  compareVersions,
   downloadVerified,
   fetchRelease,
   parseMacYml,
@@ -21,6 +20,7 @@ import {
   type GithubRelease,
 } from "../server/release.ts";
 import type { Release } from "../shared/rpc.ts";
+import { compareVersions } from "../shared/version.ts";
 
 const execFileAsync = promisify(execFile);
 const fixtureYml = readFileSync(

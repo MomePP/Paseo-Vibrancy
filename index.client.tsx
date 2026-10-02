@@ -5,7 +5,12 @@
  * launch-time notice as a conditional sidebar item pointing at a surface
  * that renders the same Glass screen, instead of a toast.
  *
- * The check runs once per `contribute()` call. Both "Update & restart" and
+ * The server's `latest` release is populated only by `checkUpdateRpc`
+ * (`index.server.ts`'s in-memory `latest` starts `null`); nothing else polls
+ * GitHub at startup, so `checkUpdateRpc` runs first here, then `statusRpc`
+ * reads the now-populated field (ruling R10).
+ *
+ * This runs once per `contribute()` call. Both "Update & restart" and
  * "Rebuild & restart" (`client/GlassScreen.tsx`) restart Paseo, which
  * reloads every plugin and re-runs `contribute()` against the new build, so
  * a stale notice clears itself on the next launch rather than needing a
@@ -15,7 +20,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import type { PluginCleanup } from "@getpaseo/plugin";
 
-import { getGlassRpc, statusRpc } from "./shared/rpc.ts";
+import { checkUpdateRpc, getGlassRpc, statusRpc } from "./shared/rpc.ts";
 import type { GlassStatus } from "./shared/rpc.ts";
 import { compareVersions } from "./shared/version.ts";
 import { applyGlassCss } from "./client/glass-css.ts";
@@ -43,16 +48,30 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
     Component: GlassScreen,
   });
 
+  let disposed = false;
   let updateCleanup: PluginCleanup | null = null;
 
   client
     .rpc(getGlassRpc, {})
-    .then(applyGlassCss)
-    .catch(() => {});
+    .then((settings) => {
+      if (!disposed) {
+        applyGlassCss(settings);
+      }
+    })
+    .catch((error: unknown) => {
+      console.error("[glass] getGlassRpc failed on load", error);
+    });
 
   client
-    .rpc(statusRpc, {})
+    .rpc(checkUpdateRpc, {})
+    .catch((error: unknown) => {
+      console.error("[glass] checkUpdateRpc failed on load", error);
+    })
+    .then(() => (disposed ? null : client.rpc(statusRpc, {})))
     .then((status) => {
+      if (disposed || !status) {
+        return;
+      }
       const title = updateNoticeTitle(status);
       if (title === null) {
         return;
@@ -69,9 +88,12 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
         surfaceCleanup();
       };
     })
-    .catch(() => {});
+    .catch((error: unknown) => {
+      console.error("[glass] statusRpc failed on load", error);
+    });
 
   return () => {
+    disposed = true;
     updateCleanup?.();
     settingsCleanup();
   };

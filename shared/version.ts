@@ -1,10 +1,10 @@
 /**
- * Semver-ish comparison matching `server/release.ts`'s `compareVersions`
- * (numeric prerelease parts compare numerically; a release outranks any of
- * its own prereleases: `0.11.0-beta.3 < 0.11.0-beta.10 < 0.11.0`). Kept as a
- * separate, pure copy here — rather than imported from `server/release.ts` —
- * because that module reaches `node:fs`/`node:crypto`, which client code
- * must never import.
+ * Semver-ish comparison (numeric prerelease parts compare numerically; a
+ * release outranks any of its own prereleases:
+ * `0.11.0-beta.3 < 0.11.0-beta.10 < 0.11.0`). The single canonical copy —
+ * `server/release.ts` imports this rather than defining its own, and client
+ * code imports it directly, since this file has no `node:` imports to leak
+ * into the client bundle.
  */
 
 function parseVersion(version: string): { main: number[]; pre: string[] | null } {

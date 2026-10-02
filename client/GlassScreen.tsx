@@ -58,22 +58,41 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
   const build = useRpc(buildRpc);
 
   const [settings, setSettings] = useState<GlassSettings>({ ...GLASS_DEFAULTS });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [status, setStatus] = useState<GlassStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** The most recently edited settings not yet confirmed saved; flushed on unmount. */
+  const pendingRef = useRef<GlassSettings | null>(null);
 
   const refreshStatus = () => {
-    fetchStatus({}).then(setStatus).catch(() => {});
+    fetchStatus({})
+      .then(setStatus)
+      .catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : "Failed to load Glass status");
+      });
   };
 
   useEffect(() => {
-    getGlass({}).then((loaded) => {
-      setSettings(loaded);
-      applyGlassCss(loaded);
-    });
+    getGlass({})
+      .then((loaded) => {
+        setSettings(loaded);
+        setSettingsLoaded(true);
+        applyGlassCss(loaded);
+      })
+      .catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : "Failed to load Glass settings");
+      });
     refreshStatus();
     return () => {
       clearTimeout(debounceRef.current);
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      if (pending) {
+        setGlass(pending).catch((error: unknown) => {
+          console.error("[glass] failed to flush glass settings on unmount", error);
+        });
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -81,11 +100,16 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
   function updateSettings(next: GlassSettings) {
     setSettings(next);
     applyGlassCss(next);
+    pendingRef.current = next;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setGlass(next).catch((error: unknown) => {
-        toast.error(error instanceof Error ? error.message : "Failed to save glass settings");
-      });
+      const toSave = pendingRef.current;
+      pendingRef.current = null;
+      if (toSave) {
+        setGlass(toSave).catch((error: unknown) => {
+          toast.error(error instanceof Error ? error.message : "Failed to save glass settings");
+        });
+      }
     }, SET_GLASS_DEBOUNCE_MS);
   }
 
@@ -127,7 +151,7 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
 
   const isWeb = layout.platform === "web";
   const runningGlassBuild = status?.runningGlassBuild ?? false;
-  const appearanceDisabled = !runningGlassBuild || busy;
+  const appearanceDisabled = !settingsLoaded || !runningGlassBuild || busy;
   const blurDisabled = appearanceDisabled || settings.material !== "none";
   const latest = status?.latest ?? null;
   const updateAvailable =
