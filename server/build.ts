@@ -1,10 +1,11 @@
 /**
- * Ports `main`'s build half from `bin/paseo-repatch` (lines 1305-1362): `ditto`
- * a pristine source into the staging bundle, apply every patch from
+ * Ports the build half of the former paseo-repatch script's `main`:
+ * `ditto` a pristine source into the staging bundle, apply every patch from
  * `asar.ts`/`patch-renderer.ts`/`main-hook.ts`/`blur.ts`, neuter the updater,
  * set the asar-integrity hash, stamp, and ad-hoc sign. Release fetch/verify
- * (Task 5) and the staging-to-live swap (Task 7) are separate modules; this
- * one only ever writes into `staging`, never the live copy.
+ * (`server/release.ts`) and the staging-to-live swap (`server/swap.ts`) are
+ * separate modules; this one only ever writes into `staging`, never the live
+ * copy.
  */
 
 import { execFile } from "node:child_process";
@@ -32,8 +33,8 @@ export const STAMP_NAME = ".glass-build";
 // electron-updater reads this from the bundle. Pointing it at an address that
 // cannot resolve turns the update check into a logged failure instead of a
 // download that would overwrite the patches — and, on macOS, would be
-// rejected against the ad-hoc signature anyway. Maintained here rather than
-// in bin/paseo-repatch: rebuilding now happens from Settings -> Glass.
+// rejected against the ad-hoc signature anyway. Rebuilding now happens from
+// Settings -> Glass, not a standalone script.
 export const DEAD_UPDATE_YML = `# neutered by the Paseo Glass plugin: this copy must never self-update.
 # Update the stock Paseo.app, then rebuild from Settings -> Glass.
 provider: generic

@@ -1,14 +1,14 @@
 /**
  * Every table/constant `patch_renderer`/`patch_index_html` need, ported from
- * `bin/paseo-repatch` (RENDERER_PATCHES etc., lines 145-860; `patch_renderer`
- * lines 1047-1157; `patch_index_html` lines 1160-1191). Python's comments on
- * *why* each anchor looks the way it does are condensed alongside the
- * constant they document, since the Python file is deleted in Task 10.
+ * the former paseo-repatch script (RENDERER_PATCHES etc.). The Python
+ * script's comments on *why* each anchor looks the way it does are condensed
+ * alongside the constant they document, since that script no longer exists.
  *
- * Fixed vs. Python, for every build this plugin produces: the look is always
- * glass / full scope / oxocarbon ANSI / no oxocarbon palette swap (Paseo's
- * own theme picker stays live), so `STOCK_PALETTE`/`OXOCARBON_PALETTE` are
- * not ported and the oxocarbon-ANSI patch always runs unconditionally.
+ * Fixed vs. the Python original, for every build this plugin produces: the
+ * look is always glass / full scope / oxocarbon ANSI / no oxocarbon palette
+ * swap (Paseo's own theme picker stays live), so
+ * `STOCK_PALETTE`/`OXOCARBON_PALETTE` are not ported and the oxocarbon-ANSI
+ * patch always runs unconditionally.
  */
 
 type TableReplacer = string | ((...match: string[]) => string);

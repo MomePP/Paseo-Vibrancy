@@ -1,6 +1,6 @@
 /**
- * Ports `renderer_path`, `patch_renderer` and `patch_index_html` from
- * `bin/paseo-repatch` (lines 1029-1191). Table/constant inputs live in
+ * Ports `renderer_path`, `patch_renderer` and `patch_index_html` from the
+ * former paseo-repatch script. Table/constant inputs live in
  * `./renderer-patches.ts`; term resolution lives in `./ghostty.ts`.
  */
 

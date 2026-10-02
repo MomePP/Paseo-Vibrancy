@@ -1,9 +1,9 @@
 /**
- * Ports the Ghostty-config terminal metrics logic from `bin/paseo-repatch`
- * (`read_ghostty`/`ghostty_metrics`, lines 863-906, plus the fallback
- * constants and `GHOSTTY_FONT_STYLES` table, lines 147-251, and the
- * precedence `main()` applies when resolving `term`, lines 1250-1270 minus
- * the CLI-flag layer, which this plugin has no equivalent of).
+ * Ports the Ghostty-config terminal metrics logic from the former
+ * paseo-repatch script (`read_ghostty`/`ghostty_metrics`, plus the
+ * fallback constants and `GHOSTTY_FONT_STYLES` table, and the precedence its
+ * `main()` applied when resolving `term`, minus the CLI-flag layer, which
+ * this plugin has no equivalent of).
  */
 
 import { existsSync, readFileSync } from "node:fs";

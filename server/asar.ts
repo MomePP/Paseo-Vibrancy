@@ -1,8 +1,8 @@
 /**
- * Ports `patch_asar`'s window-transparency entry from `bin/paseo-repatch`
- * (lines 1003-1026) for the stock `app.asar`: a single length-preserving
- * replace of the opaque `backgroundColor` call with the glass hook, padded
- * with spaces so every byte offset inside the asar archive stays put.
+ * Ports the window-transparency entry from the former paseo-repatch
+ * script for the stock `app.asar`: a single length-preserving replace of the
+ * opaque `backgroundColor` call with the glass hook, padded with spaces so
+ * every byte offset inside the asar archive stays put.
  */
 
 import { PatchCountError } from "./patch-engine.ts";

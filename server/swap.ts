@@ -8,9 +8,9 @@
  * that spawned it is gone, and the script itself ignores SIGHUP so the
  * group's controlling-terminal hangup on quit cannot cut it short either.
  *
- * Ports the quit/wait half of `bin/paseo-repatch`'s `quit_patched` and
- * `running_pids` (lines 964-996): `osascript` asks the running patched copy
- * to quit by bundle id, then the script polls `pgrep -f` on the bare
+ * Ports the quit/wait half of the former paseo-repatch script's
+ * `quit_patched` and `running_pids`: `osascript` asks the running patched
+ * copy to quit by bundle id, then the script polls `pgrep -f` on the bare
  * executable path (anchored, so it never matches a helper the app spawned
  * that is meant to outlive a quit) up to 20 s before giving up.
  */

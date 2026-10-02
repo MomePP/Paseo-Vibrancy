@@ -1,6 +1,6 @@
 /**
  * Ports `patch_renderer`'s inner `replace`/`replace_re`/`sweep_re` helpers
- * from `bin/paseo-repatch` (lines 1051-1086). Semantics and note-line format
+ * from the former paseo-repatch script. Semantics and note-line format
  * are kept byte-for-byte identical so downstream tasks can port the ~30
  * regex patches verbatim.
  */
