@@ -280,6 +280,15 @@ update completing).
   runtime. Get both modules from `process.getBuiltinModule` — a default or
   namespace import of `node:fs` makes Paseo's plugin bundler read every
   export and log `fs.F_OK` deprecation warnings.
+- **The swap script must not inherit `ELECTRON_*` variables.** The plugin
+  server inherits the daemon's ELECTRON_RUN_AS_NODE=1, and `open -a` hands
+  the caller's environment to the app it launches: a Paseo started that way
+  runs as plain Node, finds no script and exits 0 within milliseconds,
+  writing nothing to `main.log`. `startSwap` spawns the script with
+  `launchEnv(process.env)`, which drops every `ELECTRON_*` key. In the system
+  log the failed launch also showed a first-launch `syspolicyd` assessment and
+  an AMFI "constraint violation" on `libffmpeg.dylib`; both are harmless and
+  appear on successful first launches too.
 - **RPC names must be lowercase** — see above; `defineRpc` throws otherwise.
 - **Theme tokens differ from Paseo's internal names** — see above; map by
   position (`buildDarkSemanticColors`'s own order), not by matching names.

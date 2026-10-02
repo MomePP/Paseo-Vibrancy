@@ -8,6 +8,8 @@
 [![Paseo](https://img.shields.io/badge/paseo-%E2%89%A50.11.0--beta.3-161616?style=flat-square&labelColor=262626)](https://paseo.sh)
 [![macOS](https://img.shields.io/badge/macOS-Apple%20silicon-161616?style=flat-square&labelColor=262626)](#requirements)
 
+<img src="docs/hero.png" alt="Paseo-Vibrancy with Paseo-Oxocarbon: frosted-glass sidebar and main pane over the desktop" width="100%">
+
 </div>
 
 ---
@@ -47,7 +49,7 @@ paseo plugin install github:MomePP/Paseo-Vibrancy
 2. Press **Rebuild & restart**. The build takes under a minute; the first one also downloads Paseo, about 180 MB. Paseo then quits, and the copy opens on its own.
 3. From now on, launch **Paseo-Vibrancy** instead of Paseo. Both share the same data, so only run one at a time.
 
-If the copy does not open after Paseo quits, open `~/Applications/Paseo-Vibrancy.app` yourself; the build is already in place. Rebuilding restarts Paseo's daemon, which interrupts any running agents.
+Rebuilding restarts Paseo's daemon, which interrupts any running agents.
 
 ## Settings
 

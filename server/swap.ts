@@ -164,6 +164,17 @@ export function swapScript(opts: SwapOpts): string {
 }
 
 /**
+ * The environment for the swap script: everything but Electron's own
+ * `ELECTRON_*` variables. This runs inside Paseo's daemon, which is Electron
+ * with ELECTRON_RUN_AS_NODE=1, and `open` hands its environment to the app it
+ * launches — a Paseo started with that variable runs as plain Node, finds no
+ * script, and exits 0 before writing a log line or opening a window.
+ */
+export function launchEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith("ELECTRON_")));
+}
+
+/**
  * Validates `staging` carries a build stamp (a stamp ending in `missed` is
  * still swappable — MISSED patches are cosmetic, not a reason to block a
  * rebuild) and spawns `swapScript`'s output detached: own process group, no
@@ -178,5 +189,5 @@ export function startSwap(opts: Omit<SwapOpts, "trashDir"> & { trashDir?: string
   const trashDir = opts.trashDir ?? join(homedir(), ".Trash");
   const script = swapScript({ ...opts, trashDir });
 
-  spawn("/bin/sh", ["-c", script], { detached: true, stdio: "ignore" }).unref();
+  spawn("/bin/sh", ["-c", script], { detached: true, stdio: "ignore", env: launchEnv(process.env) }).unref();
 }

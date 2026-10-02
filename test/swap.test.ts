@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { startSwap, swapScript } from "../server/swap.ts";
+import { launchEnv, startSwap, swapScript } from "../server/swap.ts";
 import { STAMP_NAME } from "../server/build.ts";
 
 /**
@@ -323,4 +323,18 @@ test("escapes regex metacharacters in the exe path so pgrep -f matches only the 
   // Mirrors pgrep's own matcher (extended regular expressions).
   const literalMatch = spawnSync("/bin/sh", ["-c", `echo '${exe}' | grep -E '${pattern}'`]);
   assert.equal(literalMatch.status, 0);
+});
+
+test("launchEnv drops Electron's variables so `open -a` launches a GUI app, not Node", () => {
+  // The swap runs from Paseo's daemon, which is Electron with
+  // ELECTRON_RUN_AS_NODE=1; `open` passes its environment to the app it
+  // launches, and a Paseo started with that variable runs as plain Node and
+  // exits 0 at once.
+  const env = launchEnv({
+    ELECTRON_RUN_AS_NODE: "1",
+    ELECTRON_NO_ATTACH_CONSOLE: "1",
+    HOME: "/Users/someone",
+    PATH: "/usr/bin:/bin",
+  });
+  assert.deepEqual(env, { HOME: "/Users/someone", PATH: "/usr/bin:/bin" });
 });
