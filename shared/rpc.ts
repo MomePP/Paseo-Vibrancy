@@ -26,13 +26,13 @@ export const GlassStatusSchema = z.object({
 export type GlassStatus = z.infer<typeof GlassStatusSchema>;
 
 export const statusRpc = defineRpc({
-  name: "glass.status",
+  name: "vibrancy.status",
   input: z.object({}),
   output: GlassStatusSchema,
 });
 
 export const checkUpdateRpc = defineRpc({
-  name: "glass.check-update",
+  name: "vibrancy.check-update",
   input: z.object({}),
   output: z.object({
     release: ReleaseSchema.nullable(),
@@ -41,7 +41,7 @@ export const checkUpdateRpc = defineRpc({
 });
 
 export const buildRpc = defineRpc({
-  name: "glass.build",
+  name: "vibrancy.build",
   input: z.object({
     version: z.string().optional(),
     restart: z.boolean(),
@@ -54,13 +54,13 @@ export const buildRpc = defineRpc({
 });
 
 export const getGlassRpc = defineRpc({
-  name: "glass.get-glass",
+  name: "vibrancy.get-glass",
   input: z.object({}),
   output: GlassSettingsSchema,
 });
 
 export const setGlassRpc = defineRpc({
-  name: "glass.set-glass",
+  name: "vibrancy.set-glass",
   input: GlassSettingsSchema,
   output: GlassSettingsSchema,
 });

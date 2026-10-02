@@ -36,7 +36,7 @@ export const PASEO_REQUIREMENT =
   'identifier "sh.paseo.desktop" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] and certificate leaf[field.1.2.840.113635.100.6.1.13] and certificate leaf[subject.OU] = "99ZMJMKU9Y"';
 
 const GITHUB_HEADERS = {
-  "User-Agent": "paseo-glass-plugin",
+  "User-Agent": "paseo-vibrancy-plugin",
   Accept: "application/vnd.github+json",
 };
 
@@ -159,7 +159,7 @@ export async function verifyPaseoSignature(appPath: string): Promise<void> {
  */
 export async function downloadVerified(release: Release, cacheDir: string = DEFAULT_CACHE_DIR): Promise<string> {
   await mkdir(cacheDir, { recursive: true });
-  const staging = join(tmpdir(), `paseo-glass-dl-${process.pid}-${Date.now()}`);
+  const staging = join(tmpdir(), `paseo-vibrancy-dl-${process.pid}-${Date.now()}`);
   await mkdir(staging, { recursive: true });
 
   try {

@@ -35,12 +35,12 @@ export const STAMP_NAME = ".glass-build";
 // electron-updater reads this from the bundle. Pointing it at an address that
 // cannot resolve turns the update check into a logged failure instead of a
 // download that would overwrite the patches — and, on macOS, would be
-// rejected against the ad-hoc signature anyway. Rebuilding now happens from
-// Settings -> Glass, not a standalone script.
-export const DEAD_UPDATE_YML = `# neutered by the Paseo Glass plugin: this copy must never self-update.
-# Updates come from Settings -> Glass -> Update & restart; the stock app is not used.
+// rejected against the ad-hoc signature anyway. Rebuilding happens from the
+// Paseo-Vibrancy plugin's settings screen, not a standalone script.
+export const DEAD_UPDATE_YML = `# neutered by the Paseo-Vibrancy plugin: this copy must never self-update.
+# Updates come from Settings -> Plugins -> paseo-vibrancy -> Vibrancy -> Update & restart.
 provider: generic
-url: https://127.0.0.1:1/paseo-glass-disabled/
+url: https://127.0.0.1:1/paseo-vibrancy-disabled/
 updaterCacheDirName: '@getpaseodesktop-updater'
 `;
 
@@ -116,7 +116,7 @@ export function execName(app: string): string {
  * deletes the partial staging bundle before rethrowing, so a failed build
  * never leaves a half-patched copy behind; the notes collected before the
  * failure ride along as the error's `report` property, so a caller that
- * only sees the rejection (`glass.build`'s background job) can still
+ * only sees the rejection (`vibrancy.build`'s background job) can still
  * surface what succeeded before the failing step.
  */
 export async function buildStaging(opts: {

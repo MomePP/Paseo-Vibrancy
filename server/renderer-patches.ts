@@ -100,7 +100,7 @@ function scrimTable(pane: string): string {
 // identical lookups. `surface0`'s entry is a gradient fill (not ink, so
 // INK_SURFACE0 doesn't touch it). PANE is fixed (full scope, always), so the
 // replacement is baked in here rather than built at patch time — this is the
-// literal text Task 6's build fingerprint hashes, so a change to PANE or to
+// literal text the build fingerprint hashes, so a change to PANE or to
 // the scrim shape has to show up here to invalidate a stale build. Sidebar-
 // row tiers go fully transparent; the kebab gets its own background instead
 // (see KEBAB_CHIP/KEBAB_GUTTER).
@@ -147,7 +147,7 @@ export const KEBAB_GUTTER: ExpectedReTableEntry = {
 // reconstruct the whole match from `$1`/`$2`/`$3` as a plain string (with
 // `accent` swapped for the token in both places it appears) rather than a
 // function over `match[0]`, keeping this patch's full output in BUILD_TABLES
-// for Task 6's fingerprint.
+// for the build fingerprint.
 export const HANDLE_HIGHLIGHT_TOKEN = "surface4";
 export const HANDLE_HIGHLIGHT: ExpectedReTableEntry = {
   label: "subtle resize handle",
@@ -223,7 +223,7 @@ export const SURFACE_PATCHES: ExpectedReTableEntry[] = [
 
 // The 16 ANSI colours, remapped rather than transliterated: lazygit/eza/etc.
 // name ANSI slots rather than hex, so this alone decides how every TUI reads
-// regardless of app-chrome theme. Always applied — every Glass build ships
+// regardless of app-chrome theme. Always applied — every Vibrancy build ships
 // the oxocarbon ANSI set.
 export const OXOCARBON_ANSI =
   '{red:"#08bdba",green:"#33b1ff",yellow:"#ee5396",blue:"#42be65",magenta:"#be95ff",' +
@@ -362,8 +362,8 @@ export const HTML_WASH_REPLACEMENT =
 // built-in theme for free. Selectors are ARIA roles/Paseo's own test ids,
 // both far more stable across releases than a minified style object.
 export const OPAQUE_SURFACES_CSS = `
-    <style id="paseo-glass-opaque-surfaces">
-      /* added by paseo-glass: keep floating surfaces readable over glass */
+    <style id="paseo-vibrancy-opaque-surfaces">
+      /* added by paseo-vibrancy: keep floating surfaces readable over glass */
       [aria-modal="true"],
       [role="menu"],
       [role="listbox"] {
@@ -376,7 +376,7 @@ export const OPAQUE_SURFACES_CSS = `
     </style>
 `;
 
-// Every table/constant above, aggregated for Task 6's build fingerprint: a
+// Every table/constant above, aggregated for the build fingerprint: a
 // patch rewrite (anchor, replacement, or constant) should change the
 // fingerprint the same way a Ghostty-derived term value does.
 export const BUILD_TABLES = {

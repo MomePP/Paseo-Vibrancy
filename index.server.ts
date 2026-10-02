@@ -2,17 +2,17 @@
  * Server entry: registers the five `shared/rpc.ts` contracts against live
  * (or injected, for tests) release/build/swap dependencies, serialises
  * builds through a single-flight queue, and keeps the small bits of
- * in-process state (`latest`, `lastReport`, `lastError`) `glass.status`
+ * in-process state (`latest`, `lastReport`, `lastError`) `vibrancy.status`
  * reports.
  *
- * `glass.build` returns as soon as a build is queued (or rejects
+ * `vibrancy.build` returns as soon as a build is queued (or rejects
  * immediately if one is already running) rather than waiting for it to
  * finish: Paseo's daemon rejects plugin RPCs that run past its 30 s
  * timeout, and a rebuild from cache (~21.5 s) or an Update (179 MB
  * download + ditto + `codesign --deep` verify + build) routinely exceeds
  * that. The actual work runs in the background through `queue`; its
  * outcome lands in `lastReport`/`lastError` for the client to pick up by
- * polling `glass.status`.
+ * polling `vibrancy.status`.
  */
 
 import { homedir } from "node:os";
@@ -67,7 +67,7 @@ export class BuildQueue {
     return settled;
   }
 
-  /** Resolves once the in-flight `run` (if any) has settled, immediately when idle — a test seam for `glass.build`'s fire-and-forget job. */
+  /** Resolves once the in-flight `run` (if any) has settled, immediately when idle — a test seam for `vibrancy.build`'s fire-and-forget job. */
   async whenIdle(): Promise<void> {
     await this.#settled;
   }

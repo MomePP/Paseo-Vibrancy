@@ -1,7 +1,9 @@
 {
-  "name": "paseo-plugin-glass",
+  "name": "paseo-vibrancy",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": "github:MomePP/Paseo-Vibrancy",
   "type": "module",
   "files": [
     "paseo-plugin.json",

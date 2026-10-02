@@ -1,5 +1,5 @@
 /**
- * Settings → Glass. Appearance edits `GlassSettings` live (CSS applied
+ * The Vibrancy settings screen. Appearance edits `GlassSettings` live (CSS applied
  * immediately, `setGlassRpc` debounced 150ms so dragging a slider doesn't
  * flood the server). Build reports the running/built-from/latest versions
  * and drives rebuild/update, both of which restart Paseo.
@@ -118,9 +118,9 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
   }
 
   /**
-   * `glass.build` returns as soon as the build is queued or busy (ruling
-   * R13 — the daemon's plugin RPCs time out at 30s, well short of a build),
-   * so a non-busy response isn't the outcome: poll `glass.status` every
+   * `vibrancy.build` returns as soon as the build is queued or busy (the
+   * daemon's plugin RPCs time out at 30s, well short of a build),
+   * so a non-busy response isn't the outcome: poll `vibrancy.status` every
    * second, keeping buttons disabled, until `building` flips back to
    * false, then surface the report/error it settled with.
    */
@@ -206,7 +206,7 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
     <SettingsSection title="Glass">
       <SettingsCard>
         {!runningGlassBuild && (
-          <SettingsRow label="Not running the Glass build" hint="Rebuild below to enable live appearance controls." />
+          <SettingsRow label="Not running the Vibrancy build" hint="Rebuild below to enable live appearance controls." />
         )}
         <SettingsSelect
           label="Material"
@@ -266,7 +266,7 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
 
       <SettingsCard>
         <SettingsRow label="Running version" hint={status?.runningVersion ?? "Unknown"} />
-        <SettingsRow label="Built from" hint={status?.builtFrom ?? "Not a Glass build"} />
+        <SettingsRow label="Built from" hint={status?.builtFrom ?? "Not a Vibrancy build"} />
         <SettingsRow label="Latest release" hint={latest?.version ?? "Unknown"} />
         {status && status.lastReport.length > 0 && (
           <SettingsRow label="Last build report">

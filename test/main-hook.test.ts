@@ -51,7 +51,7 @@ function makeWindow(): FakeWindow {
 }
 
 // Evaluates PG_JS in a fresh vm context against a real settings directory
-// (real fs + real fs.watch, per the brief) with fake electron/process.dlopen.
+// (real fs + real fs.watch) with fake electron/process.dlopen.
 function loadPgJs(userDataDir: string): Sandbox {
   const windows: FakeWindow[] = [];
   const blurCalls: BlurCall[] = [];

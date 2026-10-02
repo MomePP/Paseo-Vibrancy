@@ -1,6 +1,6 @@
 /**
  * Locates the running Paseo bundle from an executable path and reads its
- * build stamp, so `glass.status` can report what the live copy is built
+ * build stamp, so `vibrancy.status` can report what the live copy is built
  * from without re-deriving the fingerprint logic owned by `server/build.ts`.
  */
 

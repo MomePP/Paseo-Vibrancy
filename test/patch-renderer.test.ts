@@ -93,7 +93,7 @@ test("patchIndexHtml rewrites the flash guard into the live color-mix wash and i
       "body { background-color: color-mix(in srgb, var(--colors-surface1, #181b1a) calc(var(--paseo-tint, 0.85) * 100%), transparent);",
     ),
   );
-  assert.ok(patched.indexOf('<style id="paseo-glass-opaque-surfaces">') < patched.indexOf("</head>"));
+  assert.ok(patched.indexOf('<style id="paseo-vibrancy-opaque-surfaces">') < patched.indexOf("</head>"));
   assert.ok(patched.includes("padding: 0 0 0 10px;"));
   assert.deepEqual(notes, ["ok      window wash (1x)", "ok      opaque floating surfaces (1x)"]);
 });
@@ -120,7 +120,7 @@ test("SCRIM_COLOURS.replacement is baked from PANE, not a dead placeholder", () 
 });
 
 test("every BUILD_TABLES patch entry's replacement is a plain string, never a function", () => {
-  // BUILD_TABLES is the only input Task 6's build fingerprint hashes; a
+  // BUILD_TABLES is the only input the build fingerprint hashes; a
   // function-valued replacement's actual output would be invisible to it, so
   // a rewrite of the function body would leave the fingerprint unchanged.
   function checkEntry(entry: unknown): void {

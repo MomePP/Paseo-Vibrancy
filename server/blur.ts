@@ -99,7 +99,7 @@ napi_value napi_register_module_v1(napi_env env, napi_value exports) {
 `;
 
 /**
- * `xcrun clang` flags `compileBlur` invokes with — exported so Task 6's
+ * `xcrun clang` flags `compileBlur` invokes with — exported so
  * `buildFingerprint` can hash them: a flag change (e.g. a different target
  * framework) changes the bytes `compileBlur` produces just as surely as an
  * edit to `BLUR_M` does, and the stamp must catch both.

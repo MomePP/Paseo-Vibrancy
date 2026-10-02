@@ -1,14 +1,14 @@
 /**
- * Client entry: registers the Glass settings screen, applies the saved CSS
- * vars on load, and — per controller ruling R4 (the SDK's toast is a
- * component-only hook, not an imperative call from `contribute()`) — shows a
+ * Client entry: registers the Vibrancy settings screen, applies the saved CSS
+ * vars on load, and — since the SDK's toast is a component-only hook, not an
+ * imperative call from `contribute()` — shows a
  * launch-time notice as a conditional sidebar item pointing at a surface
- * that renders the same Glass screen, instead of a toast.
+ * that renders the same Vibrancy screen, instead of a toast.
  *
  * The server's `latest` release is populated only by `checkUpdateRpc`
  * (`index.server.ts`'s in-memory `latest` starts `null`); nothing else polls
  * GitHub at startup, so `checkUpdateRpc` runs first here, then `statusRpc`
- * reads the now-populated field (ruling R10).
+ * reads the now-populated field.
  *
  * This runs once per `contribute()` call. Both "Update & restart" and
  * "Rebuild & restart" (`client/GlassScreen.tsx`) restart Paseo, which
@@ -26,7 +26,7 @@ import { compareVersions } from "./shared/version.ts";
 import { applyGlassCss } from "./client/glass-css.ts";
 import GlassScreen from "./client/GlassScreen.tsx";
 
-const UPDATE_SURFACE_ID = "glass-update";
+const UPDATE_SURFACE_ID = "vibrancy-update";
 
 function updateNoticeTitle(status: GlassStatus): string | null {
   if (status.latest !== null && status.runningVersion !== null) {
@@ -35,15 +35,15 @@ function updateNoticeTitle(status: GlassStatus): string | null {
     }
   }
   if (status.runningGlassBuild && !status.fingerprintMatches) {
-    return "Glass rebuild needed";
+    return "Vibrancy rebuild needed";
   }
   return null;
 }
 
 export default function contribute(client: PluginClientContext): PluginCleanup {
   const settingsCleanup = client.addSettingsScreen({
-    id: "glass",
-    title: "Glass",
+    id: "vibrancy",
+    title: "Vibrancy",
     icon: "Sparkles",
     Component: GlassScreen,
   });
@@ -76,7 +76,7 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
       if (title === null) {
         return;
       }
-      const surfaceCleanup = client.addScreen({ id: UPDATE_SURFACE_ID, title: "Glass", Component: GlassScreen });
+      const surfaceCleanup = client.addScreen({ id: UPDATE_SURFACE_ID, title: "Vibrancy", Component: GlassScreen });
       const sidebarCleanup = client.addSidebarItem({
         id: UPDATE_SURFACE_ID,
         title,
