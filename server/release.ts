@@ -255,7 +255,11 @@ export async function downloadVerified(release: Release, cacheDir: string = DEFA
     await rename(extractedApp, finalPath);
 
     for (const entry of await readdir(cacheDir)) {
-      if (entry.startsWith("Paseo-") && entry.endsWith(".app") && entry !== `Paseo-${release.version}.app`) {
+      if (entry === `Paseo-${release.version}.app` || !entry.startsWith("Paseo-") || !entry.endsWith(".app")) {
+        continue;
+      }
+      const entryVersion = entry.slice("Paseo-".length, -".app".length);
+      if (compareVersions(entryVersion, release.version) < 0) {
         await rm(join(cacheDir, entry), { recursive: true, force: true });
       }
     }

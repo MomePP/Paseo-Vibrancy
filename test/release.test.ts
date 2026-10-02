@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -182,6 +183,46 @@ test("downloadVerified rejects a sha512 mismatch and leaves the cache dir empty"
 
   await assert.rejects(() => downloadVerified(release, cacheDir), /sha512 mismatch/);
   assert.deepEqual(readdirSync(cacheDir), []);
+});
+
+test("downloadVerified's post-download sweep removes only strictly-older pristine copies", async (t) => {
+  const zipDir = mkdtempSync(join(tmpdir(), "glass-release-sweep-zip-"));
+  t.after(() => rmSync(zipDir, { recursive: true, force: true }));
+  const zipPath = join(zipDir, "Paseo-0.11.0-beta.3-arm64.zip");
+  // Real, Apple/Developer-ID-signed app, zipped the way electron-builder's own
+  // archiver does it (top-level `Paseo.app` entry) — nothing else can pass
+  // verifyPaseoSignature's real `codesign` check.
+  await execFileAsync("ditto", ["-c", "-k", "--keepParent", "--sequesterRsrc", "/Applications/Paseo.app", zipPath]);
+  const zipBytes = readFileSync(zipPath);
+  const sha512 = createHash("sha512").update(zipBytes).digest("base64");
+
+  const server = createServer((_req, res) => {
+    res.end(zipBytes);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new Error("expected AddressInfo");
+
+  const cacheDir = mkdtempSync(join(tmpdir(), "glass-release-sweep-cache-"));
+  t.after(() => rmSync(cacheDir, { recursive: true, force: true }));
+  for (const version of ["0.11.0-beta.5", "0.11.0-beta.1"]) {
+    const dir = join(cacheDir, `Paseo-${version}.app`);
+    mkdirSync(dir);
+    writeFileSync(join(dir, "marker"), version);
+  }
+
+  const release: Release = {
+    version: "0.11.0-beta.3",
+    zipUrl: `http://127.0.0.1:${address.port}/Paseo-0.11.0-beta.3-arm64.zip`,
+    sha512,
+    size: zipBytes.length,
+  };
+
+  const finalPath = await downloadVerified(release, cacheDir);
+  assert.equal(finalPath, join(cacheDir, "Paseo-0.11.0-beta.3.app"));
+  const entries = readdirSync(cacheDir).sort();
+  assert.deepEqual(entries, ["Paseo-0.11.0-beta.3.app", "Paseo-0.11.0-beta.5.app"]);
 });
 
 test("cachedPristine returns null when no pristine copy exists and the path once one does", () => {
