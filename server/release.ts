@@ -12,8 +12,6 @@
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, createWriteStream } from "node:fs";
-import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -22,6 +20,10 @@ import { promisify } from "node:util";
 
 import type { Release } from "../shared/rpc.ts";
 import { compareVersions } from "../shared/version.ts";
+import { fs, fsp } from "./fs.ts";
+
+const { existsSync, createWriteStream } = fs;
+const { mkdir, readdir, rename, rm } = fsp;
 
 const execFileAsync = promisify(execFile);
 

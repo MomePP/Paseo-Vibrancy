@@ -10,19 +10,21 @@
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { ASAR_HOOK_ANCHOR, ASAR_HOOK_LINE, patchAsar } from "./asar.ts";
 import { BLUR_CLANG_ARGS, BLUR_M, compileBlur } from "./blur.ts";
+import { fs, fsp } from "./fs.ts";
 import { resolveTerm } from "./ghostty.ts";
 import type { TermMetrics } from "./ghostty.ts";
 import { PG_JS } from "./main-hook.ts";
 import { patchIndexHtml, patchRenderer, rendererPath } from "./patch-renderer.ts";
 import { BUILD_TABLES } from "./renderer-patches.ts";
+
+const { existsSync, readFileSync } = fs;
+const { readFile, rm, writeFile } = fsp;
 
 const execFileAsync = promisify(execFile);
 
