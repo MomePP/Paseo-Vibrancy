@@ -53,12 +53,37 @@ Rebuilding restarts Paseo's daemon, which interrupts any running agents.
 
 ## Settings
 
+### Appearance
+
+Applied live, without a restart.
+
 | Control | Range | Default | Effect |
 | --- | --- | --- | --- |
 | Material | `none`, `sidebar`, `hud`, `under-window`, ... | `none` | An Apple vibrancy material. `none` uses the blur radius instead. |
 | Blur radius | 0 - 60 | 30 | Background blur behind the window, used when Material is `none`. |
 | Tint | 0 - 100% | 85% | How much of the theme colour washes over the blur. |
 | Main pane glass | on / off | on | Extends the glass behind chats and editors; off keeps the main pane solid. |
+
+### Terminal
+
+Terminal changes are baked into the copy, so they apply on **Rebuild & restart**. After you change one, the Build card shows "Rebuild to apply changes".
+
+| Control | Range | Default | Effect |
+| --- | --- | --- | --- |
+| Follow Ghostty config | on / off | on | Lets your Ghostty config override the rows below. See below. |
+| Font size | 8 - 32, step 0.5 | 13.5 | Terminal font size. Turn on **Use Paseo's Code size** to follow Settings > Appearance > Code instead. |
+| Line height | 1.0 - 2.0, step 0.05 | 1.1 | Row height as a multiple of the font size. |
+| Font weight | 100 - 900, step 100 | 400 | Weight of normal text. |
+| Bold weight | 100 - 900, step 100 | 600 | Weight of bold text. |
+| Cursor | `bar`, `block`, `underline` | `bar` | Cursor shape. |
+| Left padding | 0 - 40 px | 10 | Space between the pane edge and the terminal text. |
+| Terminal colours | Oxocarbon / Paseo default | Oxocarbon | The [Oxocarbon](https://github.com/nyoom-engineering/oxocarbon.nvim) ANSI palette, or Paseo's own. |
+
+With **Follow Ghostty config** on, a key set in `~/.config/ghostty/config` wins over the matching row: `font-family`, `font-style` (font weight), `font-style-bold` (bold weight), `cursor-style` (cursor) and `adjust-cell-height` as a percentage (line height). The font family has no row; without Ghostty it stays on Paseo's Code font. Rows Ghostty is setting show "Set by Ghostty config". With it off, the Ghostty config is not read.
+
+Oxocarbon terminal colours pair with [Paseo-Oxocarbon](https://github.com/MomePP/Paseo-Oxocarbon), which matches the rest of the app.
+
+### Build
 
 The **Build** card shows the running and latest Paseo versions, plus the report from the last build:
 
@@ -67,13 +92,6 @@ The **Build** card shows the running and latest Paseo versions, plus the report 
 - **Rebuild & restart** rebuilds from the release you are already running.
 
 A sidebar notice appears when a newer Paseo release exists, or when the plugin has changed since your copy was built.
-
-## Opinionated defaults
-
-These come built into every copy and have no setting:
-
-- **Terminal**: font size 13.5, line height 1.1, weights 400 / 600, bar cursor and 10px left padding. Each of these yields to your Ghostty config (`~/.config/ghostty/config`) when it sets `font-family`, `font-style`, `font-style-bold`, `cursor-style` or `adjust-cell-height`. The fixed font size overrides Paseo's Code size setting in the terminal.
-- **Terminal colours**: the [Oxocarbon](https://github.com/nyoom-engineering/oxocarbon.nvim) ANSI palette. Pair it with [Paseo-Oxocarbon](https://github.com/MomePP/Paseo-Oxocarbon) to match the rest of the app.
 
 ## How it works
 

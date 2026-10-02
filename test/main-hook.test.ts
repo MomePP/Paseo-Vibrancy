@@ -154,6 +154,22 @@ test("material switches off blur", (t) => {
   assert.equal(sandbox.blurCalls.at(-1)?.radius, 0);
 });
 
+test("terminal fields in the settings file are ignored by the main-process hook", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(
+    join(dir, "paseo-vibrancy.json"),
+    JSON.stringify({ material: "hud", terminal: { ansi: "paseo", fontSize: null, paddingLeft: 30 } }),
+  );
+
+  const sandbox = loadPvJs(dir);
+  const win = makeWindow();
+  sandbox.fireBrowserWindowCreated(win);
+
+  assert.deepEqual(win.vibrancyCalls, ["hud"]);
+  assert.equal(sandbox.blurCalls.at(-1)?.radius, 0);
+});
+
 test("corrupt settings file falls back to defaults", (t) => {
   const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));

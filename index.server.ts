@@ -129,11 +129,13 @@ export function createHandlers(deps: VibrancyHandlerDeps = {}) {
         runningVersion = null;
       }
     }
+    const { term, overriddenByGhostty } = resolveTerm(readSettings(settingsFile).terminal, ghosttyPath);
     return {
       runningVersion,
       runningVibrancyBuild: bundle !== null && isVibrancyBuild(bundle),
       builtFrom: stamp?.version ?? null,
-      fingerprintMatches: stamp !== null && stamp.fingerprint === buildFingerprint(resolveTerm(ghosttyPath).term),
+      fingerprintMatches: stamp !== null && stamp.fingerprint === buildFingerprint(term),
+      ghosttyOverrides: overriddenByGhostty,
       latest,
       lastReport,
       lastError,
@@ -166,7 +168,7 @@ export function createHandlers(deps: VibrancyHandlerDeps = {}) {
         throw new Error("no version to build: nothing running and none requested");
       }
       const source = doCachedPristine(version, cacheDir) ?? (await doDownloadVerified(await doFetchRelease(version), cacheDir));
-      const { report } = await doBuildStaging({ source, staging, ghosttyPath });
+      const { report } = await doBuildStaging({ source, staging, ghosttyPath, settingsFile });
       lastReport = report;
       lastError = null;
       if (input.restart) {

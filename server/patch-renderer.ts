@@ -66,7 +66,9 @@ export function patchRenderer(src: string, term: TermMetrics): { src: string; no
   // table's surface0 entry show through to.
   patcher.replace("react-navigation backdrop (full glass)", NAVIGATOR_BACKDROP, `background:${PANE}`, 1);
 
-  patcher.replaceRe(STOCK_ANSI.label, STOCK_ANSI.pattern, STOCK_ANSI.replacement, STOCK_ANSI.expect);
+  if (term.ansi === "oxocarbon") {
+    patcher.replaceRe(STOCK_ANSI.label, STOCK_ANSI.pattern, STOCK_ANSI.replacement, STOCK_ANSI.expect);
+  }
 
   patcher.src = ALPHA_HELPER + patcher.src;
   patcher.notes.push("ok      alpha helper (1x)");

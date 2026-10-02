@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { ghosttyMetrics, readGhostty, GHOSTTY_FONT_STYLES } from "../server/ghostty.ts";
+import { ghosttyMetrics, readGhostty, resolveTerm, GHOSTTY_FONT_STYLES } from "../server/ghostty.ts";
+import { TERMINAL_DEFAULTS } from "../shared/vibrancy.ts";
+import type { TerminalSettings } from "../shared/vibrancy.ts";
 
 test("ghosttyMetrics maps font-style-bold, adjust-cell-height and cursor-style", () => {
   const { metrics, notes } = ghosttyMetrics({
@@ -45,4 +47,51 @@ test("readGhostty parses key = value lines, skipping blanks and comments, repeat
   assert.deepEqual(cfg["font-family"], ["Maple Mono NF", "Noto Sans Mono"]);
   assert.deepEqual(cfg["cursor-style"], ["block"]);
   assert.equal(cfg["# a comment line"], undefined);
+});
+
+const FIXTURE = `${import.meta.dirname}/fixtures/ghostty-config`;
+const SETTINGS: TerminalSettings = {
+  ...TERMINAL_DEFAULTS,
+  fontSize: 15,
+  lineHeight: 1.3,
+  fontWeight: 300,
+  fontWeightBold: 700,
+  cursorStyle: "underline",
+  paddingLeft: 22,
+  ansi: "paseo",
+};
+
+test("resolveTerm with followGhostty on lets Ghostty win and lists what it overrode", () => {
+  const { term, overriddenByGhostty } = resolveTerm({ ...SETTINGS, followGhostty: true }, FIXTURE);
+  assert.equal(term.fontFamily, "Maple Mono NF, Noto Sans Mono");
+  assert.equal(term.cursorStyle, "block");
+  assert.equal(term.lineHeight, 1.08);
+  assert.deepEqual([...overriddenByGhostty].sort(), ["cursorStyle", "fontFamily", "lineHeight"]);
+  // Not in the fixture: the saved settings stand.
+  assert.equal(term.fontWeight, 300);
+  assert.equal(term.fontWeightBold, 700);
+  assert.equal(term.fontSize, 15);
+  assert.equal(term.ansi, "paseo");
+});
+
+test("resolveTerm with followGhostty off ignores the file entirely", () => {
+  const { term, overriddenByGhostty, notes } = resolveTerm({ ...SETTINGS, followGhostty: false }, FIXTURE);
+  assert.equal(term.fontFamily, null);
+  assert.equal(term.cursorStyle, "underline");
+  assert.equal(term.lineHeight, 1.3);
+  assert.deepEqual(overriddenByGhostty, []);
+  assert.deepEqual(notes, []);
+});
+
+test("resolveTerm builds the padding string from paddingLeft and passes a null fontSize through", () => {
+  const { term } = resolveTerm({ ...SETTINGS, followGhostty: false, paddingLeft: 7, fontSize: null }, FIXTURE);
+  assert.equal(term.padding, "0 0 0 7px");
+  assert.equal(term.fontSize, null);
+});
+
+test("resolveTerm with a missing Ghostty file uses the settings and overrides nothing", () => {
+  const { term, overriddenByGhostty } = resolveTerm(TERMINAL_DEFAULTS, "/nonexistent/ghostty-config");
+  assert.equal(term.lineHeight, 1.1);
+  assert.equal(term.fontFamily, null);
+  assert.deepEqual(overriddenByGhostty, []);
 });

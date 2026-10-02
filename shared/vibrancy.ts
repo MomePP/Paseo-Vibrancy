@@ -18,12 +18,65 @@ export const MATERIALS = [
   "tooltip",
 ] as const;
 
+export const CURSOR_STYLES = ["bar", "block", "underline"] as const;
+export const ANSI_PALETTES = ["oxocarbon", "paseo"] as const;
+
+export const TERMINAL_DEFAULTS = {
+  followGhostty: true,
+  fontSize: 13.5,
+  lineHeight: 1.1,
+  fontWeight: 400,
+  fontWeightBold: 600,
+  cursorStyle: "bar",
+  paddingLeft: 10,
+  ansi: "oxocarbon",
+} as const;
+
 export const VIBRANCY_DEFAULTS = {
   material: "none",
   blurRadius: 30,
   tint: 0.85,
   paneGlass: true,
+  terminal: TERMINAL_DEFAULTS,
 } as const;
+
+/** Clamps to `[min, max]`, then rounds to the nearest multiple of `step`. */
+function snap(value: number, min: number, max: number, step: number): number {
+  const clamped = Math.min(max, Math.max(min, value));
+  const snapped = Math.round(clamped / step) * step;
+  // Re-clamp (a step that doesn't divide the range could round past it) and
+  // trim the float noise multiplication leaves behind (1.1500000000000001).
+  return Math.round(Math.min(max, Math.max(min, snapped)) * 1000) / 1000;
+}
+
+export const TerminalSettingsSchema = z.object({
+  followGhostty: z.boolean().catch(TERMINAL_DEFAULTS.followGhostty),
+  fontSize: z
+    .number()
+    .nullable()
+    .catch(TERMINAL_DEFAULTS.fontSize)
+    .transform((value) => (value === null ? null : snap(value, 8, 32, 0.5))),
+  lineHeight: z
+    .number()
+    .catch(TERMINAL_DEFAULTS.lineHeight)
+    .transform((value) => snap(value, 1, 2, 0.05)),
+  fontWeight: z
+    .number()
+    .catch(TERMINAL_DEFAULTS.fontWeight)
+    .transform((value) => snap(value, 100, 900, 100)),
+  fontWeightBold: z
+    .number()
+    .catch(TERMINAL_DEFAULTS.fontWeightBold)
+    .transform((value) => snap(value, 100, 900, 100)),
+  cursorStyle: z.enum(CURSOR_STYLES).catch(TERMINAL_DEFAULTS.cursorStyle),
+  paddingLeft: z
+    .number()
+    .catch(TERMINAL_DEFAULTS.paddingLeft)
+    .transform((value) => snap(value, 0, 40, 1)),
+  ansi: z.enum(ANSI_PALETTES).catch(TERMINAL_DEFAULTS.ansi),
+});
+
+export type TerminalSettings = z.infer<typeof TerminalSettingsSchema>;
 
 export const VibrancySettingsSchema = z.object({
   material: z.enum(MATERIALS).catch(VIBRANCY_DEFAULTS.material),
@@ -36,6 +89,9 @@ export const VibrancySettingsSchema = z.object({
     .catch(VIBRANCY_DEFAULTS.tint)
     .transform((value) => Math.min(1, Math.max(0, value))),
   paneGlass: z.boolean().catch(VIBRANCY_DEFAULTS.paneGlass),
+  // Missing or non-object `terminal` fails the object parse and lands on the
+  // defaults; each field inside falls back on its own.
+  terminal: TerminalSettingsSchema.catch({ ...TERMINAL_DEFAULTS }),
 });
 
 export type VibrancySettings = z.infer<typeof VibrancySettingsSchema>;
@@ -47,5 +103,5 @@ export function parseVibrancy(raw: unknown): VibrancySettings {
   if (result.success) {
     return result.data;
   }
-  return { ...VIBRANCY_DEFAULTS };
+  return { ...VIBRANCY_DEFAULTS, terminal: { ...TERMINAL_DEFAULTS } };
 }

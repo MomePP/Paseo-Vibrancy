@@ -25,7 +25,7 @@ import {
 } from "@getpaseo/plugin/client/ui";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 
-import { VIBRANCY_DEFAULTS, MATERIALS } from "../shared/vibrancy.ts";
+import { VIBRANCY_DEFAULTS, MATERIALS, TERMINAL_DEFAULTS } from "../shared/vibrancy.ts";
 import type { VibrancySettings } from "../shared/vibrancy.ts";
 import { buildRpc, checkUpdateRpc, getSettingsRpc, setSettingsRpc, statusRpc } from "../shared/rpc.ts";
 import type { VibrancyStatus } from "../shared/rpc.ts";
@@ -49,6 +49,25 @@ const MATERIAL_OPTIONS = MATERIALS.map((material) => ({
   value: material,
 }));
 
+const range = (min: number, max: number, step: number) =>
+  Array.from({ length: Math.round((max - min) / step) + 1 }, (_, i) => Math.round((min + i * step) * 1000) / 1000);
+
+/** Native-platform fallbacks for the terminal range rows (discrete steps). */
+const FONT_SIZE_STEPS = range(8, 32, 0.5);
+const LINE_HEIGHT_STEPS = range(1, 2, 0.05);
+const PADDING_STEPS = range(0, 40, 1);
+
+const WEIGHT_OPTIONS = range(100, 900, 100).map((n) => ({ label: String(n), value: String(n) }));
+const CURSOR_OPTIONS = [
+  { label: "Bar", value: "bar" as const },
+  { label: "Block", value: "block" as const },
+  { label: "Underline", value: "underline" as const },
+];
+const ANSI_OPTIONS = [
+  { label: "Oxocarbon", value: "oxocarbon" as const },
+  { label: "Paseo default", value: "paseo" as const },
+];
+
 export default function VibrancyScreen({ theme, layout }: PluginSurfaceProps) {
   const toast = useToast();
   const getSettings = useRpc(getSettingsRpc);
@@ -57,7 +76,7 @@ export default function VibrancyScreen({ theme, layout }: PluginSurfaceProps) {
   const checkUpdate = useRpc(checkUpdateRpc);
   const build = useRpc(buildRpc);
 
-  const [settings, setSettings] = useState<VibrancySettings>({ ...VIBRANCY_DEFAULTS });
+  const [settings, setSettings] = useState<VibrancySettings>({ ...VIBRANCY_DEFAULTS, terminal: { ...TERMINAL_DEFAULTS } });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [status, setStatus] = useState<VibrancyStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,9 +129,15 @@ export default function VibrancyScreen({ theme, layout }: PluginSurfaceProps) {
       const toSave = pendingRef.current;
       pendingRef.current = null;
       if (toSave) {
-        setSettingsRemote(toSave).catch((error: unknown) => {
-          toast.error(error instanceof Error ? error.message : "Failed to save vibrancy settings");
-        });
+        setSettingsRemote(toSave)
+          .then(() => {
+            if (!unmountedRef.current) {
+              refreshStatus();
+            }
+          })
+          .catch((error: unknown) => {
+            toast.error(error instanceof Error ? error.message : "Failed to save vibrancy settings");
+          });
       }
     }, SET_SETTINGS_DEBOUNCE_MS);
   }
@@ -202,7 +227,7 @@ export default function VibrancyScreen({ theme, layout }: PluginSurfaceProps) {
   const updateAvailable =
     latest !== null && status?.runningVersion != null && compareVersions(latest.version, status.runningVersion) > 0;
 
-  return (
+  const appearanceSection = (
     <SettingsSection title="Appearance">
       <SettingsCard>
         {!runningVibrancyBuild && (
@@ -263,8 +288,147 @@ export default function VibrancyScreen({ theme, layout }: PluginSurfaceProps) {
           disabled={appearanceDisabled}
         />
       </SettingsCard>
+    </SettingsSection>
+  );
 
+  const terminal = settings.terminal;
+  const terminalDisabled = !settingsLoaded;
+  const overridden = new Set(terminal.followGhostty ? (status?.ghosttyOverrides ?? []) : []);
+  const ghosttyHint = (key: string, hint?: string): string | undefined =>
+    overridden.has(key) ? "Set by Ghostty config" : hint;
+  const updateTerminal = (patch: Partial<VibrancySettings["terminal"]>) =>
+    updateSettings({ ...settings, terminal: { ...terminal, ...patch } });
+
+  const terminalSection = (
+    <SettingsSection title="Terminal">
       <SettingsCard>
+        <SettingsSwitch
+          label="Follow Ghostty config"
+          hint={
+            overridden.has("fontFamily")
+              ? "Ghostty's values win over the rows below; font family is also set by Ghostty config"
+              : "Ghostty's values win over the rows below"
+          }
+          value={terminal.followGhostty}
+          onValueChange={(followGhostty) => updateTerminal({ followGhostty })}
+          disabled={terminalDisabled}
+        />
+        <SettingsSwitch
+          label="Use Paseo's Code size"
+          hint="Font size follows Settings > Appearance > Code"
+          value={terminal.fontSize === null}
+          onValueChange={(useCode) =>
+            updateTerminal({ fontSize: useCode ? null : TERMINAL_DEFAULTS.fontSize })
+          }
+          disabled={terminalDisabled}
+        />
+        {isWeb ? (
+          <RangeRow
+            label="Font size"
+            value={terminal.fontSize ?? TERMINAL_DEFAULTS.fontSize}
+            min={8}
+            max={32}
+            step={0.5}
+            disabled={terminalDisabled || terminal.fontSize === null}
+            theme={theme}
+            format={(size) => (terminal.fontSize === null ? "Paseo's Code size" : `${size} pt`)}
+            onChange={(fontSize) => updateTerminal({ fontSize })}
+          />
+        ) : (
+          <SettingsSelect
+            label="Font size"
+            value={String(terminal.fontSize ?? TERMINAL_DEFAULTS.fontSize)}
+            options={FONT_SIZE_STEPS.map((n) => ({ label: `${n} pt`, value: String(n) }))}
+            onValueChange={(v) => updateTerminal({ fontSize: Number(v) })}
+            disabled={terminalDisabled || terminal.fontSize === null}
+          />
+        )}
+        {isWeb ? (
+          <RangeRow
+            label="Line height"
+            value={terminal.lineHeight}
+            min={1}
+            max={2}
+            step={0.05}
+            disabled={terminalDisabled || overridden.has("lineHeight")}
+            theme={theme}
+            format={(n) => ghosttyHint("lineHeight") ?? n.toFixed(2)}
+            onChange={(lineHeight) => updateTerminal({ lineHeight })}
+          />
+        ) : (
+          <SettingsSelect
+            label="Line height"
+            hint={ghosttyHint("lineHeight")}
+            value={terminal.lineHeight.toFixed(2)}
+            options={LINE_HEIGHT_STEPS.map((n) => ({ label: n.toFixed(2), value: n.toFixed(2) }))}
+            onValueChange={(v) => updateTerminal({ lineHeight: Number(v) })}
+            disabled={terminalDisabled || overridden.has("lineHeight")}
+          />
+        )}
+        <SettingsSelect
+          label="Font weight"
+          hint={ghosttyHint("fontWeight")}
+          value={String(terminal.fontWeight)}
+          options={WEIGHT_OPTIONS}
+          onValueChange={(v) => updateTerminal({ fontWeight: Number(v) })}
+          disabled={terminalDisabled || overridden.has("fontWeight")}
+        />
+        <SettingsSelect
+          label="Bold weight"
+          hint={ghosttyHint("fontWeightBold")}
+          value={String(terminal.fontWeightBold)}
+          options={WEIGHT_OPTIONS}
+          onValueChange={(v) => updateTerminal({ fontWeightBold: Number(v) })}
+          disabled={terminalDisabled || overridden.has("fontWeightBold")}
+        />
+        <SettingsSelect
+          label="Cursor"
+          hint={ghosttyHint("cursorStyle")}
+          value={terminal.cursorStyle}
+          options={CURSOR_OPTIONS}
+          onValueChange={(cursorStyle) => updateTerminal({ cursorStyle })}
+          disabled={terminalDisabled || overridden.has("cursorStyle")}
+        />
+        {isWeb ? (
+          <RangeRow
+            label="Left padding"
+            value={terminal.paddingLeft}
+            min={0}
+            max={40}
+            step={1}
+            disabled={terminalDisabled}
+            theme={theme}
+            format={(px) => `${px} px`}
+            onChange={(paddingLeft) => updateTerminal({ paddingLeft })}
+          />
+        ) : (
+          <SettingsSelect
+            label="Left padding"
+            value={String(terminal.paddingLeft)}
+            options={PADDING_STEPS.map((n) => ({ label: `${n} px`, value: String(n) }))}
+            onValueChange={(v) => updateTerminal({ paddingLeft: Number(v) })}
+            disabled={terminalDisabled}
+          />
+        )}
+        <SettingsSelect
+          label="Terminal colours"
+          value={terminal.ansi}
+          options={ANSI_OPTIONS}
+          onValueChange={(ansi) => updateTerminal({ ansi })}
+          disabled={terminalDisabled}
+        />
+      </SettingsCard>
+    </SettingsSection>
+  );
+
+  const needsRebuild = Boolean(status?.runningVibrancyBuild && !status.fingerprintMatches);
+
+  const buildSection = (
+    <SettingsSection title="Build">
+      <SettingsCard>
+        {needsRebuild && (
+          <SettingsRow label="Rebuild to apply changes" hint="Terminal changes apply to the next build." />
+        )}
         <SettingsRow label="Running version" hint={status?.runningVersion ?? "Unknown"} />
         <SettingsRow label="Built from" hint={status?.builtFrom ?? "Not a Vibrancy build"} />
         <SettingsRow label="Latest release" hint={latest?.version ?? "Unknown"} />
@@ -308,5 +472,13 @@ export default function VibrancyScreen({ theme, layout }: PluginSurfaceProps) {
         />
       </SettingsCard>
     </SettingsSection>
+  );
+
+  return (
+    <>
+      {appearanceSection}
+      {terminalSection}
+      {buildSection}
+    </>
   );
 }

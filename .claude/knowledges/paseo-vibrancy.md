@@ -1,8 +1,9 @@
 # Paseo-Vibrancy: how it works
 
 Paseo runs from a patched copy at `~/Applications/Paseo-Vibrancy.app`. The
-patches — transparency/vibrancy, oxocarbon ANSI colours, terminal metrics
-from the Ghostty config, lower idle frame rates — are applied by this Paseo
+patches — transparency/vibrancy, oxocarbon ANSI colours (optional), terminal
+metrics from the Terminal settings (optionally overridden by the Ghostty
+config), lower idle frame rates — are applied by this Paseo
 plugin (manifest id `paseo-vibrancy`), installed with
 `paseo plugin install github:MomePP/Paseo-Vibrancy` (or a local clone path)
 and rebuilt from Settings > Plugins > paseo-vibrancy > `…` > Vibrancy inside
@@ -11,9 +12,9 @@ an earlier standalone script that did the same patching by hand before
 Paseo supported plugins.
 
 The companion oxocarbon theme lives in a separate repo/plugin,
-`MomePP/Paseo-Oxocarbon` (id `paseo-oxocarbon`); this plugin always applies
-the oxocarbon ANSI palette to the terminal regardless of which Paseo theme
-is active.
+`MomePP/Paseo-Oxocarbon` (id `paseo-oxocarbon`); the oxocarbon ANSI palette
+is applied to the terminal by default, independent of the active Paseo theme,
+and can be switched to Paseo's stock palette in the Terminal settings.
 
 ## Why a patched copy at all, and why it has to be a copy
 
@@ -92,20 +93,51 @@ Defaults: `{ material: "none", blurRadius: 30, tint: 0.85, paneGlass: true }`.
   - `--paseo-pane-bg` — `transparent` when `paneGlass`, else
     `var(--colors-surface1)`; consumed by the navigator backdrop patch.
 - **Vibrancy screen** (`addSettingsScreen({ id: "vibrancy", title: "Vibrancy", … })`):
-  an Appearance section with Material (`SettingsSelect`), Blur radius and Tint
-  (styled `<input type="range">`), Main pane glass (`SettingsSwitch`). Every
-  change calls `setSettings`; tint/pane apply locally at once rather than
-  waiting on the round trip. In stock (unpatched) Paseo the screen shows
-  "Not running the Vibrancy build" with only the Build card active.
+  three sections. Appearance: Material (`SettingsSelect`), Blur radius and Tint
+  (styled `<input type="range">`), Main pane glass (`SettingsSwitch`); every
+  change calls `setSettings`, tint/pane apply locally at once rather than
+  waiting on the round trip. Terminal: the settings below (range rows fall
+  back to selects off web); rows Ghostty overrides are disabled and hinted
+  "Set by Ghostty config". Build: versions, report, actions, and "Rebuild to
+  apply changes" when `runningVibrancyBuild && !fingerprintMatches`. Saving
+  (debounced 150 ms) refreshes status so that notice tracks edits. In stock
+  (unpatched) Paseo the screen shows "Not running the Vibrancy build" and
+  only the Build card and Terminal settings are usable.
+
+## Terminal settings (baked in at build time)
+
+`settings.terminal`, all fields with `.catch` defaults (a missing or
+malformed object parses to the defaults):
+
+| Field | Range / values | Default |
+| --- | --- | --- |
+| `followGhostty` | boolean | `true` |
+| `fontSize` | 8–32 step 0.5, or `null` = Paseo's Code size | 13.5 |
+| `lineHeight` | 1.0–2.0 step 0.05 | 1.1 |
+| `fontWeight` / `fontWeightBold` | 100–900 step 100 | 400 / 600 |
+| `cursorStyle` | `bar`, `block`, `underline` | `bar` |
+| `paddingLeft` | 0–40 integer px | 10 |
+| `ansi` | `oxocarbon`, `paseo` | `oxocarbon` |
+
+Unlike appearance, none of this is live: `pv.js` ignores `terminal`, and the
+values land in the renderer bundle on the next Rebuild. `resolveTerm`
+(`server/ghostty.ts`) turns them into `TermMetrics`; padding becomes
+`0 0 0 <paddingLeft>px`. With `followGhostty` on, Ghostty's `font-family`,
+`font-style`, `font-style-bold`, `cursor-style` and percentage
+`adjust-cell-height` override the matching fields and are returned as
+`overriddenByGhostty` (term keys: `fontFamily`, `fontWeight`,
+`fontWeightBold`, `cursorStyle`, `lineHeight`); with it off the file is not
+read and `fontFamily` is `null` (Paseo's Code font). A `null` `fontSize`
+keeps Paseo's own settings-sync behaviour for size.
 
 ## RPC contracts (`shared/rpc.ts`)
 
 | RPC | Input | Output |
 | --- | --- | --- |
-| `vibrancy.status` | — | running version, built-from version, fingerprint match, latest known release, last build report, last build error, `building` |
+| `vibrancy.status` | — | running version, built-from version, fingerprint match, `ghosttyOverrides` (term keys the Ghostty config currently overrides), latest known release, last build report, last build error, `building` |
 | `vibrancy.check-update` | — | latest release `{version, zipUrl, sha512, size}` or `null`, plus an error string |
 | `vibrancy.build` | `{ version?: string, restart: boolean }` | `{ ok, report: [], error }` — returns immediately once queued (see "Build is asynchronous" below), never waits for the build itself |
-| `vibrancy.get-settings` / `vibrancy.set-settings` | settings | settings |
+| `vibrancy.get-settings` / `vibrancy.set-settings` | settings (appearance + `terminal`) | settings |
 
 **Gotcha: RPC names must be lowercase.** `defineRpc` throws on a camelCase
 `name` — the SDK enforces a lowercase-with-dots pattern, pinned by a
@@ -162,9 +194,11 @@ version being built (`cachedPristine`).
    trailing scrim, kebab chip/gutter, resize handle, navigator backdrop
    (now `var(--paseo-pane-bg, transparent)`), oxocarbon ANSI, opaque-surfaces
    stylesheet (`<style id="paseo-vibrancy-opaque-surfaces">`) + xterm
-   padding, flash-guard → tint rule. Ghostty-derived terminal metrics come
-   from `server/ghostty.ts` (`resolveTerm`, reading `~/.config/ghostty/config`;
-   falls back to fixed constants when the file is missing).
+   padding, flash-guard → tint rule. The terminal metrics come from
+   `resolveTerm(settings.terminal)` in `server/ghostty.ts`; `buildStaging`
+   reads the saved settings with `readSettings(opts.settingsFile)`. The
+   oxocarbon ANSI patch runs only when `terminal.ansi === "oxocarbon"`; with
+   `"paseo"` the stock palette stays and no note is emitted for it.
 4. Write `pv.js` (`server/main-hook.ts`); compile `blur.node`
    (`server/blur.ts`) with `clang -bundle -undefined dynamic_lookup -framework AppKit -fobjc-arc`.
    A failed compile reports `MISSED window blur: <reason>` but materials
@@ -188,11 +222,14 @@ version being built (`cachedPristine`).
 `buildFingerprint` hashes every byte-affecting input — `BUILD_TABLES` (every
 renderer/html patch table and constant), the asar hook anchor/line, `pv.js`,
 the blur source and its clang flags, `DEAD_UPDATE_YML`, and the resolved
-Ghostty term metrics — so any edit to a patch, the main-process hook, blur,
-the updater-neutering text, or the Ghostty derivation changes the stamp.
-`vibrancy.status`'s `fingerprintMatches` compares the *running* bundle's
-stamped fingerprint against a fresh `buildFingerprint()` call, so "Rebuild
-needed" reflects source drift since the last build, not just a version bump.
+terminal metrics (`TermMetrics`, which includes `ansi` and the Ghostty
+overrides actually applied) — so any edit to a patch, the main-process hook,
+blur, the updater-neutering text, the saved terminal settings, or the Ghostty
+config changes the stamp. `vibrancy.status`'s `fingerprintMatches` compares
+the *running* bundle's stamped fingerprint against a fresh
+`buildFingerprint(resolveTerm(readSettings().terminal).term)`, so "Rebuild
+needed" reflects source drift and saved-setting changes since the last build,
+not just a version bump.
 
 ## Build is asynchronous (`index.server.ts`)
 

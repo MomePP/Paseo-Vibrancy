@@ -17,6 +17,7 @@ export const VibrancyStatusSchema = z.object({
   runningVibrancyBuild: z.boolean(),
   builtFrom: z.string().nullable(),
   fingerprintMatches: z.boolean(),
+  ghosttyOverrides: z.array(z.string()),
   latest: ReleaseSchema.nullable(),
   lastReport: z.array(z.string()),
   lastError: z.string().nullable(),

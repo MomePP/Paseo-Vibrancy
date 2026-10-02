@@ -10,39 +10,21 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import type { TerminalSettings } from "../shared/vibrancy.ts";
+
 export type TermMetrics = {
   fontSize: number | null;
   lineHeight: number;
   padding: string;
   cursorStyle: string;
-  fontFamily: string | null;
+  fontFamily: string | null; // null keeps Settings -> Code font in charge
   fontWeight: number | string | null;
   fontWeightBold: number | string | null;
+  ansi: TerminalSettings["ansi"];
 };
 
-// xterm's own default is hardcoded to 1 with no setting behind it. Code size
-// in Settings -> Appearance -> Fonts only accepts whole numbers and clamps at
-// 22, so this is the only way to land a terminal-only 13.5pt.
-export const FONT_SIZE: number | null = 13.5;
-
-// Fallbacks for what the Ghostty config below normally supplies. Each is
-// what Paseo ships, so with no Ghostty file present nothing changes but the
-// size.
-export const LINE_HEIGHT = 1.1;
-export const PADDING = "0 0 0 10px"; // CSS shorthand; left only, by preference
-export const CURSOR_STYLE = "bar";
-export const FONT_FAMILY: string | null = null; // null keeps Settings -> Code font in charge
-
-// Neither weight is reachable from Paseo: it never passes fontWeight or
-// fontWeightBold, so the terminal sits on xterm's own defaults (400/700).
-// 400/600 rather than stock's 400/700 — only the bold moves, since SGR 1 is
-// most of what a git TUI paints and 700 against most monospace faces reads
-// as too heavy relative to the regular weight.
-export const FONT_WEIGHT: number | string | null = 400;
-export const FONT_WEIGHT_BOLD: number | string | null = 600;
-
 // Default Ghostty config location; a missing file is not an error, just the
-// fallbacks above.
+// saved settings.
 export const GHOSTTY_PATH = join(homedir(), ".config", "ghostty", "config");
 
 // Ghostty names a face by its style; xterm names one by CSS weight. These are
@@ -130,33 +112,43 @@ export function ghosttyMetrics(
 }
 
 /**
- * Resolves `TermMetrics`: the constants above, overridden by whatever the
- * Ghostty config supplies. Mirrors `main()`'s precedence (lines 1250-1264)
- * minus the CLI-flag layer, which this plugin has no equivalent of.
+ * Resolves `TermMetrics` from the saved terminal settings. With
+ * `followGhostty` on, whatever the Ghostty config supplies overrides the
+ * matching setting and is named in `overriddenByGhostty`; with it off the
+ * file is not read and the font family stays null (Paseo's Code font).
  */
-export function resolveTerm(ghosttyPath: string = GHOSTTY_PATH): {
+export function resolveTerm(
+  settings: TerminalSettings,
+  ghosttyPath: string = GHOSTTY_PATH,
+): {
   term: TermMetrics;
   notes: string[];
+  overriddenByGhostty: string[];
 } {
   const term: TermMetrics = {
-    fontSize: FONT_SIZE,
-    lineHeight: LINE_HEIGHT,
-    padding: PADDING,
-    cursorStyle: CURSOR_STYLE,
-    fontFamily: FONT_FAMILY,
-    fontWeight: FONT_WEIGHT,
-    fontWeightBold: FONT_WEIGHT_BOLD,
+    fontSize: settings.fontSize,
+    lineHeight: settings.lineHeight,
+    padding: `0 0 0 ${settings.paddingLeft}px`,
+    cursorStyle: settings.cursorStyle,
+    fontFamily: null,
+    fontWeight: settings.fontWeight,
+    fontWeightBold: settings.fontWeightBold,
+    ansi: settings.ansi,
   };
   const notes: string[] = [];
 
+  if (!settings.followGhostty) {
+    return { term, notes, overriddenByGhostty: [] };
+  }
+
   if (!existsSync(ghosttyPath)) {
-    notes.push(`ok      ghostty config (not found at ${ghosttyPath}, using defaults)`);
-    return { term, notes };
+    notes.push(`ok      ghostty config (not found at ${ghosttyPath}, using settings)`);
+    return { term, notes, overriddenByGhostty: [] };
   }
 
   const { metrics, notes: extra } = ghosttyMetrics(readGhostty(ghosttyPath));
   Object.assign(term, metrics);
   notes.push(`ok      ghostty config (${Object.keys(metrics).length} keys from ${ghosttyPath})`);
   notes.push(...extra);
-  return { term, notes };
+  return { term, notes, overriddenByGhostty: Object.keys(metrics) };
 }

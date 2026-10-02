@@ -7,13 +7,21 @@ import { join } from "node:path";
 import { BuildQueue, createHandlers } from "../index.server.ts";
 import { readSettings, writeSettings } from "../server/settings-file.ts";
 import { isVibrancyBuild, runningBundle } from "../server/status.ts";
-import { VIBRANCY_DEFAULTS } from "../shared/vibrancy.ts";
+import { TERMINAL_DEFAULTS, VIBRANCY_DEFAULTS } from "../shared/vibrancy.ts";
+import { buildFingerprint, stampFor } from "../server/build.ts";
+import { resolveTerm } from "../server/ghostty.ts";
 
 test("writeSettings then readSettings round-trips", () => {
   const dir = mkdtempSync(join(tmpdir(), "vibrancy-file-"));
   const file = join(dir, "paseo-vibrancy.json");
   try {
-    const settings = { material: "hud" as const, blurRadius: 12, tint: 0.4, paneGlass: false };
+    const settings = {
+      material: "hud" as const,
+      blurRadius: 12,
+      tint: 0.4,
+      paneGlass: false,
+      terminal: { ...TERMINAL_DEFAULTS, cursorStyle: "block" as const, paddingLeft: 3 },
+    };
     writeSettings(settings, file);
     assert.deepEqual(readSettings(file), settings);
   } finally {
@@ -267,7 +275,13 @@ test("getSettings/setSettings round-trip through the handlers", async () => {
     const handlers = createHandlers({ settingsFile: join(dir, "paseo-vibrancy.json") });
     assert.deepEqual(await handlers.getSettings(), VIBRANCY_DEFAULTS);
 
-    const settings = { material: "sidebar" as const, blurRadius: 20, tint: 0.6, paneGlass: false };
+    const settings = {
+      material: "sidebar" as const,
+      blurRadius: 20,
+      tint: 0.6,
+      paneGlass: false,
+      terminal: { ...TERMINAL_DEFAULTS, ansi: "paseo" as const, fontSize: null },
+    };
     const written = await handlers.setSettings(settings);
     assert.deepEqual(written, settings);
     assert.deepEqual(await handlers.getSettings(), settings);
@@ -289,6 +303,57 @@ test("checkUpdate handler records the release for status to report as latest", a
     const result = await handlers.checkUpdate();
     assert.deepEqual(result, { release, error: null });
     assert.deepEqual((await handlers.status()).latest, release);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("status: saving a different terminal setting makes fingerprintMatches false for an old stamp", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
+  try {
+    const bundle = join(dir, "Paseo.app");
+    mkdirSync(join(bundle, "Contents", "Resources"), { recursive: true });
+    mkdirSync(join(bundle, "Contents", "MacOS"), { recursive: true });
+    const plist = `<?xml version="1.0"?><plist><dict><key>CFBundleShortVersionString</key><string>1.2.3</string></dict></plist>`;
+    writeFileSync(join(bundle, "Contents", "Info.plist"), plist, "utf8");
+
+    const ghosttyPath = join(dir, "no-ghostty");
+    const fingerprint = buildFingerprint(resolveTerm(TERMINAL_DEFAULTS, ghosttyPath).term);
+    writeFileSync(join(bundle, "Contents", "Resources", ".vibrancy-build"), stampFor("1.2.3", fingerprint) + "\n", "utf8");
+
+    const handlers = createHandlers({
+      settingsFile: join(dir, "paseo-vibrancy.json"),
+      execPath: join(bundle, "Contents", "MacOS", "Paseo"),
+      ghosttyPath,
+    });
+
+    const before = await handlers.status();
+    assert.equal(before.runningVibrancyBuild, true);
+    assert.equal(before.fingerprintMatches, true);
+    assert.deepEqual(before.ghosttyOverrides, []);
+
+    await handlers.setSettings({ ...VIBRANCY_DEFAULTS, terminal: { ...TERMINAL_DEFAULTS, lineHeight: 1.4 } });
+    assert.equal((await handlers.status()).fingerprintMatches, false);
+
+    await handlers.setSettings({ ...VIBRANCY_DEFAULTS, terminal: { ...TERMINAL_DEFAULTS } });
+    assert.equal((await handlers.status()).fingerprintMatches, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("status reports which terminal settings the Ghostty config overrides", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
+  try {
+    const handlers = createHandlers({
+      settingsFile: join(dir, "paseo-vibrancy.json"),
+      execPath: "/usr/local/bin/node",
+      ghosttyPath: `${import.meta.dirname}/fixtures/ghostty-config`,
+    });
+    assert.deepEqual([...(await handlers.status()).ghosttyOverrides].sort(), ["cursorStyle", "fontFamily", "lineHeight"]);
+
+    await handlers.setSettings({ ...VIBRANCY_DEFAULTS, terminal: { ...TERMINAL_DEFAULTS, followGhostty: false } });
+    assert.deepEqual((await handlers.status()).ghosttyOverrides, []);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

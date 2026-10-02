@@ -18,6 +18,7 @@ import { ASAR_HOOK_ANCHOR, ASAR_HOOK_LINE, patchAsar } from "./asar.ts";
 import { BLUR_CLANG_ARGS, BLUR_M, compileBlur } from "./blur.ts";
 import { fs, fsp } from "./fs.ts";
 import { resolveTerm } from "./ghostty.ts";
+import { readSettings } from "./settings-file.ts";
 import type { TermMetrics } from "./ghostty.ts";
 import { PV_JS } from "./main-hook.ts";
 import { patchIndexHtml, patchRenderer, rendererPath } from "./patch-renderer.ts";
@@ -123,6 +124,7 @@ export async function buildStaging(opts: {
   source: string;
   staging?: string;
   ghosttyPath?: string;
+  settingsFile?: string;
 }): Promise<{ report: string[]; missed: boolean }> {
   const staging = opts.staging ?? DEFAULT_STAGING;
   const report: string[] = [];
@@ -143,7 +145,7 @@ export async function buildStaging(opts: {
     // 3. Renderer bundle + index.html. Term is resolved here (read, not
     // reported yet) so the renderer patch has the metrics it needs; its
     // notes land after the html notes to match the report's fixed order.
-    const { term, notes: ghosttyNotes } = resolveTerm(opts.ghosttyPath);
+    const { term, notes: ghosttyNotes } = resolveTerm(readSettings(opts.settingsFile).terminal, opts.ghosttyPath);
 
     const bundlePath = rendererPath(staging);
     const rendererSrc = await readFile(bundlePath, "utf8");

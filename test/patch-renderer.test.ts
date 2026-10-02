@@ -17,7 +17,22 @@ const DEFAULT_TERM: TermMetrics = {
   fontFamily: null,
   fontWeight: 400,
   fontWeightBold: 600,
+  ansi: "oxocarbon",
 };
+
+const STOCK_ANSI_TEXT = '{red:"#e07070",green:"#5dba80",yellow:"#e0c070",brightWhite:"#ffffff"}';
+
+test("patchRenderer replaces the stock ANSI palette when ansi is oxocarbon", () => {
+  const { src, notes } = patchRenderer(STOCK_ANSI_TEXT, DEFAULT_TERM);
+  assert.ok(!src.includes('red:"#e07070"'));
+  assert.ok(notes.some((n) => n.startsWith("ok      oxocarbon ANSI")));
+});
+
+test("patchRenderer leaves the stock ANSI palette alone, with no MISSED note for it, when ansi is paseo", () => {
+  const { src, notes } = patchRenderer(STOCK_ANSI_TEXT, { ...DEFAULT_TERM, ansi: "paseo" });
+  assert.ok(src.includes(STOCK_ANSI_TEXT));
+  assert.ok(!notes.some((n) => n.includes("oxocarbon ANSI")));
+});
 
 test("patchRenderer clears the react-navigation backdrop to the live pane var", () => {
   const { src, notes } = patchRenderer("x background:'rgb(242, 242, 242)' y", DEFAULT_TERM);
