@@ -2,7 +2,17 @@
  * Server entry: registers the five `shared/rpc.ts` contracts against live
  * (or injected, for tests) release/build/swap dependencies, serialises
  * builds through a single-flight queue, and keeps the small bits of
- * in-process state (`latest`, `lastReport`) `glass.status` reports.
+ * in-process state (`latest`, `lastReport`, `lastError`) `glass.status`
+ * reports.
+ *
+ * `glass.build` returns as soon as a build is queued (or rejects
+ * immediately if one is already running) rather than waiting for it to
+ * finish: Paseo's daemon rejects plugin RPCs that run past its 30 s
+ * timeout, and a rebuild from cache (~21.5 s) or an Update (179 MB
+ * download + ditto + `codesign --deep` verify + build) routinely exceeds
+ * that. The actual work runs in the background through `queue`; its
+ * outcome lands in `lastReport`/`lastError` for the client to pick up by
+ * polling `glass.status`.
  */
 
 import { homedir } from "node:os";
@@ -11,7 +21,7 @@ import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import type { PluginCleanup } from "@getpaseo/plugin";
 
-import { DEFAULT_STAGING, appVersion, buildFingerprint, buildStaging as buildStagingDefault } from "./server/build.ts";
+import { DEFAULT_STAGING, appVersion, buildFingerprint, buildStaging as buildStagingDefault, execName } from "./server/build.ts";
 import { DEFAULT_GLASS_FILE, readGlass, writeGlass } from "./server/glass-file.ts";
 import { resolveTerm } from "./server/ghostty.ts";
 import {
@@ -32,6 +42,7 @@ export const DEFAULT_TARGET = join(homedir(), "Applications", "Paseo-Vibrancy.ap
 /** Single-flight guard: a second `run` while one is pending rejects immediately, never queues. */
 export class BuildQueue {
   #busy = false;
+  #settled: Promise<void> = Promise.resolve();
 
   get busy(): boolean {
     return this.#busy;
@@ -42,11 +53,23 @@ export class BuildQueue {
       throw new Error("build already running");
     }
     this.#busy = true;
-    try {
-      return await fn();
-    } finally {
-      this.#busy = false;
-    }
+    const settled = (async () => {
+      try {
+        return await fn();
+      } finally {
+        this.#busy = false;
+      }
+    })();
+    this.#settled = settled.then(
+      () => undefined,
+      () => undefined,
+    );
+    return settled;
+  }
+
+  /** Resolves once the in-flight `run` (if any) has settled, immediately when idle — a test seam for `glass.build`'s fire-and-forget job. */
+  async whenIdle(): Promise<void> {
+    await this.#settled;
   }
 }
 
@@ -68,6 +91,13 @@ export type GlassHandlerDeps = {
 type BuildInput = { version?: string; restart: boolean };
 type BuildOutput = { ok: boolean; report: string[]; error: string | null };
 
+/** Pulls the partial report `buildStaging` attaches to a thrown error (notes collected before the failure), else none. */
+function reportFromError(error: unknown): string[] {
+  if (error instanceof Error && Array.isArray((error as Error & { report?: unknown }).report)) {
+    return (error as Error & { report: string[] }).report;
+  }
+  return [];
+}
 /** Builds the five RPC handlers against `deps` (all optional, defaulting to the real filesystem/network). */
 export function createHandlers(deps: GlassHandlerDeps = {}) {
   const glassFile = deps.glassFile ?? DEFAULT_GLASS_FILE;
@@ -86,6 +116,7 @@ export function createHandlers(deps: GlassHandlerDeps = {}) {
   const queue = new BuildQueue();
   let latest: Release | null = null;
   let lastReport: string[] = [];
+  let lastError: string | null = null;
 
   async function status() {
     const bundle = runningBundle(execPath);
@@ -105,6 +136,7 @@ export function createHandlers(deps: GlassHandlerDeps = {}) {
       fingerprintMatches: stamp !== null && stamp.fingerprint === buildFingerprint(resolveTerm(ghosttyPath).term),
       latest,
       lastReport,
+      lastError,
       building: queue.busy,
     };
   }
@@ -118,30 +150,48 @@ export function createHandlers(deps: GlassHandlerDeps = {}) {
   }
 
   /**
-   * `version` defaults to the running bundle's version (client omits it for
-   * "Rebuild", passes the checked `latest.version` for "Update"). Errors —
-   * including the queue rejecting a concurrent call — are reported, never
-   * thrown, so a failed build never surfaces as an unhandled rejection.
+   * Runs the actual build (and, if requested, swap) inside `queue`, then
+   * records the outcome in `lastReport`/`lastError` itself (success or
+   * failure, including the partial report attached to a thrown error) —
+   * never throwing, so `queue.run`'s returned promise (and `whenIdle()`,
+   * which tracks it) only ever settles once that state is already correct.
+   * `version` defaults to the running bundle's version (the client omits it
+   * for "Rebuild", passes the checked `latest.version` for "Update").
+   */
+  async function runBuildJob(input: BuildInput): Promise<void> {
+    try {
+      const bundle = runningBundle(execPath);
+      const version = input.version ?? (bundle ? appVersion(bundle) : undefined);
+      if (!version) {
+        throw new Error("no version to build: nothing running and none requested");
+      }
+      const source = doCachedPristine(version, cacheDir) ?? (await doDownloadVerified(await doFetchRelease(version), cacheDir));
+      const { report } = await doBuildStaging({ source, staging, ghosttyPath });
+      lastReport = report;
+      lastError = null;
+      if (input.restart) {
+        const runningExe = bundle ? join(bundle, "Contents", "MacOS", execName(bundle)) : undefined;
+        doStartSwap({ staging, target, quit: true, open: true, runningExe });
+      }
+    } catch (error) {
+      lastReport = reportFromError(error);
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  /**
+   * Returns immediately — `{ok:true}` once the job is queued, `{ok:false,
+   * error:"build already running"}` if one is already in flight — so this
+   * RPC always completes well inside the daemon's 30 s plugin-RPC timeout
+   * even though the job itself can run for minutes. `runBuildJob` never
+   * throws, so the queued run can never surface as an unhandled rejection.
    */
   async function build(input: BuildInput): Promise<BuildOutput> {
-    try {
-      return await queue.run(async () => {
-        const bundle = runningBundle(execPath);
-        const version = input.version ?? (bundle ? appVersion(bundle) : undefined);
-        if (!version) {
-          throw new Error("no version to build: nothing running and none requested");
-        }
-        const source = doCachedPristine(version, cacheDir) ?? (await doDownloadVerified(await doFetchRelease(version), cacheDir));
-        const { report } = await doBuildStaging({ source, staging, ghosttyPath });
-        lastReport = report;
-        if (input.restart) {
-          doStartSwap({ staging, target, quit: true, open: true });
-        }
-        return { ok: true, report, error: null };
-      });
-    } catch (error) {
-      return { ok: false, report: [], error: error instanceof Error ? error.message : String(error) };
+    if (queue.busy) {
+      return { ok: false, report: [], error: "build already running" };
     }
+    void queue.run(() => runBuildJob(input));
+    return { ok: true, report: [], error: null };
   }
 
   async function getGlass(): Promise<GlassSettings> {

@@ -64,13 +64,10 @@ test("concurrent build is rejected", async () => {
   assert.equal(await first, "first");
 });
 
-test("build handler reports a concurrent rejection instead of throwing", async () => {
+test("build handler returns before a slow build resolves, then records the report once it finishes", async () => {
   const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
   try {
-    let release!: () => void;
-    const pending = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const { promise: pending, resolve: release } = Promise.withResolvers<void>();
     const handlers = createHandlers({
       glassFile: join(dir, "paseo-glass.json"),
       execPath: "/usr/local/bin/node",
@@ -81,21 +78,48 @@ test("build handler reports a concurrent rejection instead of throwing", async (
       },
     });
 
-    const inFlight = handlers.build({ version: "1.2.3", restart: false });
-    const rejected = await handlers.build({ version: "1.2.3", restart: false });
-    assert.equal(rejected.ok, false);
-    assert.equal(rejected.error, "build already running");
+    const queued = await handlers.build({ version: "1.2.3", restart: false });
+    assert.deepEqual(queued, { ok: true, report: [], error: null });
+    assert.equal((await handlers.status()).building, true);
 
     release();
-    const result = await inFlight;
-    assert.equal(result.ok, true);
-    assert.deepEqual(result.report, ["ok      fake"]);
+    await handlers.queue.whenIdle();
+
+    const status = await handlers.status();
+    assert.equal(status.building, false);
+    assert.equal(status.lastError, null);
+    assert.deepEqual(status.lastReport, ["ok      fake"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("build handler reports a thrown error instead of letting it escape", async () => {
+test("build handler rejects a concurrent call immediately instead of queuing it", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  try {
+    const { promise: pending, resolve: release } = Promise.withResolvers<void>();
+    const handlers = createHandlers({
+      glassFile: join(dir, "paseo-glass.json"),
+      execPath: "/usr/local/bin/node",
+      cachedPristine: () => join(dir, "pristine.app"),
+      buildStaging: async () => {
+        await pending;
+        return { report: ["ok      fake"], missed: false };
+      },
+    });
+
+    await handlers.build({ version: "1.2.3", restart: false });
+    const rejected = await handlers.build({ version: "1.2.3", restart: false });
+    assert.deepEqual(rejected, { ok: false, report: [], error: "build already running" });
+
+    release();
+    await handlers.queue.whenIdle();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a thrown build error records lastError and the partial report attached to it, never escapes", async () => {
   const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
   try {
     const handlers = createHandlers({
@@ -103,14 +127,18 @@ test("build handler reports a thrown error instead of letting it escape", async 
       execPath: "/usr/local/bin/node",
       cachedPristine: () => join(dir, "pristine.app"),
       buildStaging: async () => {
-        throw new Error("ditto failed");
+        throw Object.assign(new Error("ditto failed"), { report: ["ok      asar"] });
       },
     });
 
-    const result = await handlers.build({ version: "1.2.3", restart: false });
-    assert.equal(result.ok, false);
-    assert.equal(result.error, "ditto failed");
-    assert.deepEqual(result.report, []);
+    const queued = await handlers.build({ version: "1.2.3", restart: false });
+    assert.equal(queued.ok, true);
+
+    await handlers.queue.whenIdle();
+
+    const status = await handlers.status();
+    assert.equal(status.lastError, "ditto failed");
+    assert.deepEqual(status.lastReport, ["ok      asar"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -130,9 +158,76 @@ test("build handler never restarts when restart is false, even with no running b
       },
     });
 
-    const result = await handlers.build({ version: "1.2.3", restart: false });
-    assert.equal(result.ok, true);
+    await handlers.build({ version: "1.2.3", restart: false });
+    await handlers.queue.whenIdle();
+    assert.equal((await handlers.status()).lastError, null);
     assert.equal(swapped, false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("restart:true calls startSwap only once the build succeeds, never on failure", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  try {
+    let swapped = false;
+    const failing = createHandlers({
+      glassFile: join(dir, "paseo-glass.json"),
+      execPath: "/usr/local/bin/node",
+      cachedPristine: () => join(dir, "pristine.app"),
+      buildStaging: async () => {
+        throw new Error("codesign failed");
+      },
+      startSwap: () => {
+        swapped = true;
+      },
+    });
+    await failing.build({ version: "1.2.3", restart: true });
+    await failing.queue.whenIdle();
+    assert.equal(swapped, false);
+
+    const succeeding = createHandlers({
+      glassFile: join(dir, "paseo-glass.json"),
+      execPath: "/usr/local/bin/node",
+      cachedPristine: () => join(dir, "pristine.app"),
+      buildStaging: async () => ({ report: ["ok      fake"], missed: false }),
+      startSwap: () => {
+        swapped = true;
+      },
+    });
+    await succeeding.build({ version: "1.2.3", restart: true });
+    await succeeding.queue.whenIdle();
+    assert.equal(swapped, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("build handler defaults version to the running bundle's version when none is requested", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  try {
+    const bundle = join(dir, "Paseo.app");
+    mkdirSync(join(bundle, "Contents", "Resources"), { recursive: true });
+    mkdirSync(join(bundle, "Contents", "MacOS"), { recursive: true });
+    const plist = `<?xml version="1.0"?><plist><dict><key>CFBundleShortVersionString</key><string>1.2.3</string></dict></plist>`;
+    writeFileSync(join(bundle, "Contents", "Info.plist"), plist, "utf8");
+
+    const requestedVersions: Array<string | undefined> = [];
+    const handlers = createHandlers({
+      glassFile: join(dir, "paseo-glass.json"),
+      execPath: join(bundle, "Contents", "MacOS", "Paseo"),
+      cachedPristine: (version) => {
+        requestedVersions.push(version);
+        return join(dir, "pristine.app");
+      },
+      buildStaging: async () => ({ report: ["ok      fake"], missed: false }),
+    });
+
+    await handlers.build({ restart: false });
+    await handlers.queue.whenIdle();
+
+    assert.deepEqual(requestedVersions, ["1.2.3"]);
+    assert.equal((await handlers.status()).lastError, null);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -160,6 +255,7 @@ test("status reflects an injected non-glass running bundle", async () => {
     assert.equal(status.building, false);
     assert.equal(status.latest, null);
     assert.deepEqual(status.lastReport, []);
+    assert.equal(status.lastError, null);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

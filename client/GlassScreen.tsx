@@ -4,7 +4,7 @@
  * flood the server). Build reports the running/built-from/latest versions
  * and drives rebuild/update, both of which restart Paseo.
  *
- * Also mounted (via `index.client.tsx`'s conditional `addSurface`) as the
+ * Also mounted (via `index.client.tsx`'s conditional `addScreen`) as the
  * launch-time "update available" / "rebuild needed" sidebar surface — same
  * component, same `PluginSurfaceProps` shape, so both call sites render the
  * full screen rather than a trimmed-down notice.
@@ -62,6 +62,8 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
   const [status, setStatus] = useState<GlassStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const unmountedRef = useRef(false);
   /** The most recently edited settings not yet confirmed saved; flushed on unmount. */
   const pendingRef = useRef<GlassSettings | null>(null);
 
@@ -85,7 +87,9 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
       });
     refreshStatus();
     return () => {
+      unmountedRef.current = true;
       clearTimeout(debounceRef.current);
+      clearTimeout(pollTimerRef.current);
       const pending = pendingRef.current;
       pendingRef.current = null;
       if (pending) {
@@ -113,20 +117,61 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
     }, SET_GLASS_DEBOUNCE_MS);
   }
 
+  /**
+   * `glass.build` returns as soon as the build is queued or busy (ruling
+   * R13 — the daemon's plugin RPCs time out at 30s, well short of a build),
+   * so a non-busy response isn't the outcome: poll `glass.status` every
+   * second, keeping buttons disabled, until `building` flips back to
+   * false, then surface the report/error it settled with.
+   */
+  async function pollUntilBuildDone(successMessage: string) {
+    for (;;) {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      pollTimerRef.current = setTimeout(resolve, 1000);
+      await promise;
+      if (unmountedRef.current) {
+        return;
+      }
+      let latestStatus: GlassStatus;
+      try {
+        latestStatus = await fetchStatus({});
+      } catch (error) {
+        if (!unmountedRef.current) {
+          toast.error(error instanceof Error ? error.message : "Failed to load Glass status");
+        }
+        return;
+      }
+      if (unmountedRef.current) {
+        return;
+      }
+      setStatus(latestStatus);
+      if (!latestStatus.building) {
+        if (latestStatus.lastError) {
+          toast.error(latestStatus.lastError);
+        } else {
+          toast.show(successMessage);
+        }
+        return;
+      }
+    }
+  }
+
   async function runBuild(input: { version?: string; restart: boolean }, successMessage: string) {
     setBusy(true);
     try {
-      const result = await build(input);
-      if (result.error) {
-        toast.error(result.error);
-      } else if (result.ok) {
-        toast.show(successMessage);
+      const queued = await build(input);
+      if (!queued.ok) {
+        toast.error(queued.error ?? "Build already running");
+        return;
       }
-      refreshStatus();
+      await pollUntilBuildDone(successMessage);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Build failed");
     } finally {
-      setBusy(false);
+      if (!unmountedRef.current) {
+        setBusy(false);
+      }
+      refreshStatus();
     }
   }
 

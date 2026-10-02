@@ -19,6 +19,7 @@ export const GlassStatusSchema = z.object({
   fingerprintMatches: z.boolean(),
   latest: ReleaseSchema.nullable(),
   lastReport: z.array(z.string()),
+  lastError: z.string().nullable(),
   building: z.boolean(),
 });
 

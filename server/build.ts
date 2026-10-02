@@ -36,7 +36,7 @@ export const STAMP_NAME = ".glass-build";
 // rejected against the ad-hoc signature anyway. Rebuilding now happens from
 // Settings -> Glass, not a standalone script.
 export const DEAD_UPDATE_YML = `# neutered by the Paseo Glass plugin: this copy must never self-update.
-# Update the stock Paseo.app, then rebuild from Settings -> Glass.
+# Updates come from Settings -> Glass -> Update & restart; the stock app is not used.
 provider: generic
 url: https://127.0.0.1:1/paseo-glass-disabled/
 updaterCacheDirName: '@getpaseodesktop-updater'
@@ -96,12 +96,26 @@ export function appVersion(app: string): string {
   return match[1]!;
 }
 
+/** Reads `CFBundleExecutable` out of the bundle's Info.plist, falling back to "Paseo" if missing or unreadable. */
+export function execName(app: string): string {
+  try {
+    const plist = readFileSync(join(app, "Contents", "Info.plist"), "utf8");
+    const match = plist.match(/<key>CFBundleExecutable<\/key>\s*<string>([^<]*)<\/string>/);
+    return match ? match[1]! : "Paseo";
+  } catch {
+    return "Paseo";
+  }
+}
+
 /**
  * Builds a signed, patched copy of `opts.source` at `opts.staging`
  * (`~/Applications/.Paseo-Vibrancy.staging.app` by default). Any thrown error
  * — a missing `app.asar`, an occurrence-count mismatch, a failed codesign —
  * deletes the partial staging bundle before rethrowing, so a failed build
- * never leaves a half-patched copy behind.
+ * never leaves a half-patched copy behind; the notes collected before the
+ * failure ride along as the error's `report` property, so a caller that
+ * only sees the rejection (`glass.build`'s background job) can still
+ * surface what succeeded before the failing step.
  */
 export async function buildStaging(opts: {
   source: string;
@@ -194,6 +208,9 @@ export async function buildStaging(opts: {
     return { report, missed };
   } catch (error) {
     await rm(staging, { recursive: true, force: true });
+    if (error instanceof Error) {
+      (error as Error & { report?: string[] }).report = report;
+    }
     throw error;
   }
 }
