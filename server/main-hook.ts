@@ -62,6 +62,7 @@ try {
     process.dlopen(blurModule, path.join(__dirname, "blur.node"));
     blur = blurModule.exports;
   } catch (dlopenErr) {
+    console.error("[paseo-glass] failed to load blur.node", dlopenErr);
     blur = null;
   }
 
@@ -133,7 +134,7 @@ try {
     /* ignore — directory may not exist yet */
   }
 } catch (loadErr) {
-  /* ignore any load-time failure — Paseo must still launch */
+  console.error("[paseo-glass] load-time failure, Paseo will still launch", loadErr);
 }
 
 module.exports = true;

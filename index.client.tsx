@@ -76,7 +76,7 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
       if (title === null) {
         return;
       }
-      const surfaceCleanup = client.addSurface(UPDATE_SURFACE_ID, GlassScreen);
+      const surfaceCleanup = client.addScreen({ id: UPDATE_SURFACE_ID, title: "Glass", Component: GlassScreen });
       const sidebarCleanup = client.addSidebarItem({
         id: UPDATE_SURFACE_ID,
         title,

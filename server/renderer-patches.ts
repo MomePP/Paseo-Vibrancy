@@ -19,19 +19,12 @@ export type ExpectedReTableEntry = ReTableEntry & { expect: number };
 
 // --- the look (fixed) -------------------------------------------------------
 //
-// Every React surface token goes to alpha 0 — see paseo-repatch's long
-// comment on why DIM/ALPHAS split one job in two (nested opaque surfaces
-// compositing with themselves otherwise). Baked in as literal "0.0" text
-// below to match Python's `str(0.0)` byte-for-byte, since SURFACE_PATCHES'
-// replacement strings are pre-rendered rather than built with `{a}` at
-// patch time.
-export const ALPHAS = {
-  surface0: 0.0,
-  background: 0.0,
-  sidebar: 0.0,
-  workspace: 0.0,
-  terminal: 0.0,
-} as const;
+// Every React surface token goes to alpha 0 — left non-zero, a nested
+// surface would composite its own tint on top of its already-opaque parent
+// and stay visible instead of letting the window's own glass show through.
+// Baked in as literal "0.0" text below to match Python's `str(0.0)`
+// byte-for-byte, since SURFACE_PATCHES' replacement strings are
+// pre-rendered rather than built with `{a}` at patch time.
 
 // --- renderer: free length ---------------------------------------------------
 
@@ -188,7 +181,8 @@ export const ALPHA_HELPER =
   'var __paseoOpaque=function(c){return String(c||"")' +
   '.replace(/^rgba\\((.+),\\s*[\\d.]+\\)$/,"rgba($1, 1)")};\n';
 
-// The four large-area surface tokens, alpha 0 always (see ALPHAS above).
+// The four large-area surface tokens (surface0, background, sidebar,
+// workspace), alpha 0 always.
 // Patches the theme factories' *outputs*, not the palettes feeding them:
 // `surface0` is also `primaryForeground` and `surface2` is `popover`/`input`/
 // `muted`, so an alpha at the palette would make button text and popovers
@@ -386,7 +380,6 @@ export const OPAQUE_SURFACES_CSS = `
 // patch rewrite (anchor, replacement, or constant) should change the
 // fingerprint the same way a Ghostty-derived term value does.
 export const BUILD_TABLES = {
-  ALPHAS,
   RENDERER_PATCHES,
   NAVIGATOR_BACKDROP,
   PANE,
