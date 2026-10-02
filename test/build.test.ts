@@ -36,12 +36,12 @@ test("fingerprint serialisation is sensitive to DEAD_UPDATE_YML, ASAR_HOOK_ANCHO
   assert.notEqual(base, serialiseFingerprintInputs(BASE_TERM, { blurClangArgs: ["something", "else"] }));
 });
 
-test('stampFor joins version and fingerprint as "<ver>|glass=<hash>"', () => {
-  assert.equal(stampFor("0.11.0-beta.3", "abc"), "0.11.0-beta.3|glass=abc");
+test('stampFor joins version and fingerprint as "<ver>|vibrancy=<hash>"', () => {
+  assert.equal(stampFor("0.11.0-beta.3", "abc"), "0.11.0-beta.3|vibrancy=abc");
 });
 
 test("failed build leaves target untouched", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-build-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-build-"));
   const source = join(dir, "NotAnApp.app");
   const staging = join(dir, "staging.app");
   mkdirSync(join(source, "Contents", "Resources"), { recursive: true });
@@ -54,12 +54,12 @@ test("failed build leaves target untouched", async () => {
   }
 });
 
-const pristine = process.env.GLASS_PRISTINE;
+const pristine = process.env.VIBRANCY_PRISTINE;
 test(
   "builds pristine beta.3 cleanly",
-  { skip: pristine ? false : "set GLASS_PRISTINE=<path to a verified pristine Paseo.app> to run" },
+  { skip: pristine ? false : "set VIBRANCY_PRISTINE=<path to a verified pristine Paseo.app> to run" },
   async () => {
-    const dir = mkdtempSync(join(tmpdir(), "glass-build-pristine-"));
+    const dir = mkdtempSync(join(tmpdir(), "vibrancy-build-pristine-"));
     const staging = join(dir, "staging.app");
     try {
       const { report, missed } = await buildStaging({ source: pristine!, staging });
@@ -70,11 +70,11 @@ test(
 
       await execFileAsync("codesign", ["--verify", "--deep", staging]);
 
-      assert.equal(existsSync(join(staging, "Contents", "Resources", "pg.js")), true);
+      assert.equal(existsSync(join(staging, "Contents", "Resources", "pv.js")), true);
       assert.equal(existsSync(join(staging, "Contents", "Resources", "blur.node")), true);
 
-      const stamp = readFileSync(join(staging, "Contents", "Resources", ".glass-build"), "utf8");
-      assert.match(stamp, /^0\.11\.0-beta\.3\|glass=/);
+      const stamp = readFileSync(join(staging, "Contents", "Resources", ".vibrancy-build"), "utf8");
+      assert.match(stamp, /^0\.11\.0-beta\.3\|vibrancy=/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1,7 +1,7 @@
 /**
  * A `<input type="range">` settings row. React Native Web renders host
  * elements straight through to react-dom, so a plain DOM range input works
- * here — but only on web; GlassScreen must not mount this on native
+ * here — but only on web; VibrancyScreen must not mount this on native
  * (`layout.platform !== "web"`), since there is no DOM to render it into.
  */
 

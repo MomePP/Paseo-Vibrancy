@@ -11,7 +11,7 @@ interface BlurExports {
 }
 
 test("compileBlur compiles blur.node and setBlur rejects a null-pointer buffer without crashing", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-blur-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-blur-"));
   const dest = join(dir, "blur.node");
   try {
     const note = await compileBlur(dest);

@@ -348,7 +348,7 @@ export const TERMINAL_METRICS_SYNC =
 export const HTML_FLASH_GUARD = /(html,\s*body\s*\{\s*background-color:\s*)#([0-9a-fA-F]{6});/;
 
 // The wash itself: a CSS `color-mix` against `--paseo-tint` (default 0.85,
-// matching GLASS_DEFAULTS.tint) rather than a baked-in rgba, so a later live
+// matching VIBRANCY_DEFAULTS.tint) rather than a baked-in rgba, so a later live
 // control can retint without a rebuild. `$2` is HTML_FLASH_GUARD's captured
 // hex, reused as the `--colors-surface1` fallback so the wash matches
 // whichever dark surface Paseo shipped.

@@ -1,17 +1,17 @@
 /**
- * Maps `GlassSettings` to the two CSS custom properties the patched
+ * Maps `VibrancySettings` to the two CSS custom properties the patched
  * renderer's stylesheet reads (see `server/renderer-patches.ts`), and
  * applies them live so Settings changes show immediately without a reload.
  */
 
-import type { GlassSettings } from "../shared/glass.ts";
+import type { VibrancySettings } from "../shared/vibrancy.ts";
 
-export type GlassCssVars = {
+export type VibrancyCssVars = {
   "--paseo-tint": string;
   "--paseo-pane-bg": string;
 };
 
-export function glassCssVars(settings: GlassSettings): GlassCssVars {
+export function vibrancyCssVars(settings: VibrancySettings): VibrancyCssVars {
   return {
     "--paseo-tint": String(settings.tint),
     "--paseo-pane-bg": settings.paneGlass ? "transparent" : "var(--colors-surface1)",
@@ -30,14 +30,14 @@ interface StyleHost {
 }
 
 /** No-op off the web (mobile/native has no `document`). */
-export function applyGlassCss(settings: GlassSettings): void {
+export function applyVibrancyCss(settings: VibrancySettings): void {
   if (!("document" in globalThis)) {
     return;
   }
   // Presence just checked above; this tsconfig has no lib "dom" entry (see
   // `StyleHost`), so `globalThis` carries no ambient `document` field to narrow.
   const doc = (globalThis as unknown as { document: StyleHost }).document;
-  const vars = glassCssVars(settings);
+  const vars = vibrancyCssVars(settings);
   for (const [name, value] of Object.entries(vars)) {
     doc.documentElement.style.setProperty(name, value);
   }

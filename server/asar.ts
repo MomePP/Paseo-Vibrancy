@@ -1,7 +1,7 @@
 /**
  * Ports the window-transparency entry from the former paseo-repatch
  * script for the stock `app.asar`: a single length-preserving replace of the
- * opaque `backgroundColor` call with the glass hook, padded with spaces so
+ * opaque `backgroundColor` call with the vibrancy hook, padded with spaces so
  * every byte offset inside the asar archive stays put.
  */
 
@@ -13,7 +13,7 @@ export const ASAR_HOOK_ANCHOR =
   'backgroundColor: (0, window_manager_js_1.getWindowBackgroundColor)(systemTheme),';
 
 export const ASAR_HOOK_LINE =
-  'transparent:require(process.resourcesPath+"/pg.js"),visualEffectState:"active",';
+  'transparent:require(process.resourcesPath+"/pv.js"),visualEffectState:"active",';
 
 export function patchAsar(data: Buffer): { data: Buffer; notes: string[] } {
   const notes: string[] = [];

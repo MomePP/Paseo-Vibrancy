@@ -27,7 +27,7 @@ const { mkdir, readdir, rename, rm } = fsp;
 
 const execFileAsync = promisify(execFile);
 
-export const DEFAULT_CACHE_DIR = join(homedir(), "Library", "Caches", "paseo-glass");
+export const DEFAULT_CACHE_DIR = join(homedir(), "Library", "Caches", "paseo-vibrancy");
 
 export const DEFAULT_API_URL = "https://api.github.com/repos/getpaseo/paseo/releases";
 

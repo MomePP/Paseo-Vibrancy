@@ -11,7 +11,7 @@
  * reads the now-populated field.
  *
  * This runs once per `contribute()` call. Both "Update & restart" and
- * "Rebuild & restart" (`client/GlassScreen.tsx`) restart Paseo, which
+ * "Rebuild & restart" (`client/VibrancyScreen.tsx`) restart Paseo, which
  * reloads every plugin and re-runs `contribute()` against the new build, so
  * a stale notice clears itself on the next launch rather than needing a
  * live subscription here.
@@ -20,21 +20,21 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import type { PluginCleanup } from "@getpaseo/plugin";
 
-import { checkUpdateRpc, getGlassRpc, statusRpc } from "./shared/rpc.ts";
-import type { GlassStatus } from "./shared/rpc.ts";
+import { checkUpdateRpc, getSettingsRpc, statusRpc } from "./shared/rpc.ts";
+import type { VibrancyStatus } from "./shared/rpc.ts";
 import { compareVersions } from "./shared/version.ts";
-import { applyGlassCss } from "./client/glass-css.ts";
-import GlassScreen from "./client/GlassScreen.tsx";
+import { applyVibrancyCss } from "./client/vibrancy-css.ts";
+import VibrancyScreen from "./client/VibrancyScreen.tsx";
 
 const UPDATE_SURFACE_ID = "vibrancy-update";
 
-function updateNoticeTitle(status: GlassStatus): string | null {
+function updateNoticeTitle(status: VibrancyStatus): string | null {
   if (status.latest !== null && status.runningVersion !== null) {
     if (compareVersions(status.latest.version, status.runningVersion) > 0) {
       return `Paseo ${status.latest.version} available`;
     }
   }
-  if (status.runningGlassBuild && !status.fingerprintMatches) {
+  if (status.runningVibrancyBuild && !status.fingerprintMatches) {
     return "Vibrancy rebuild needed";
   }
   return null;
@@ -45,27 +45,27 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
     id: "vibrancy",
     title: "Vibrancy",
     icon: "Sparkles",
-    Component: GlassScreen,
+    Component: VibrancyScreen,
   });
 
   let disposed = false;
   let updateCleanup: PluginCleanup | null = null;
 
   client
-    .rpc(getGlassRpc, {})
+    .rpc(getSettingsRpc, {})
     .then((settings) => {
       if (!disposed) {
-        applyGlassCss(settings);
+        applyVibrancyCss(settings);
       }
     })
     .catch((error: unknown) => {
-      console.error("[glass] getGlassRpc failed on load", error);
+      console.error("[vibrancy] getSettingsRpc failed on load", error);
     });
 
   client
     .rpc(checkUpdateRpc, {})
     .catch((error: unknown) => {
-      console.error("[glass] checkUpdateRpc failed on load", error);
+      console.error("[vibrancy] checkUpdateRpc failed on load", error);
     })
     .then(() => (disposed ? null : client.rpc(statusRpc, {})))
     .then((status) => {
@@ -76,7 +76,7 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
       if (title === null) {
         return;
       }
-      const surfaceCleanup = client.addScreen({ id: UPDATE_SURFACE_ID, title: "Vibrancy", Component: GlassScreen });
+      const surfaceCleanup = client.addScreen({ id: UPDATE_SURFACE_ID, title: "Vibrancy", Component: VibrancyScreen });
       const sidebarCleanup = client.addSidebarItem({
         id: UPDATE_SURFACE_ID,
         title,
@@ -89,7 +89,7 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
       };
     })
     .catch((error: unknown) => {
-      console.error("[glass] statusRpc failed on load", error);
+      console.error("[vibrancy] statusRpc failed on load", error);
     });
 
   return () => {

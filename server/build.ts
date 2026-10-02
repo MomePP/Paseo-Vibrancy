@@ -19,7 +19,7 @@ import { BLUR_CLANG_ARGS, BLUR_M, compileBlur } from "./blur.ts";
 import { fs, fsp } from "./fs.ts";
 import { resolveTerm } from "./ghostty.ts";
 import type { TermMetrics } from "./ghostty.ts";
-import { PG_JS } from "./main-hook.ts";
+import { PV_JS } from "./main-hook.ts";
 import { patchIndexHtml, patchRenderer, rendererPath } from "./patch-renderer.ts";
 import { BUILD_TABLES } from "./renderer-patches.ts";
 
@@ -30,7 +30,7 @@ const execFileAsync = promisify(execFile);
 
 export const DEFAULT_STAGING = join(homedir(), "Applications", ".Paseo-Vibrancy.staging.app");
 
-export const STAMP_NAME = ".glass-build";
+export const STAMP_NAME = ".vibrancy-build";
 
 // electron-updater reads this from the bundle. Pointing it at an address that
 // cannot resolve turns the update check into a logged failure instead of a
@@ -48,7 +48,7 @@ updaterCacheDirName: '@getpaseodesktop-updater'
  * Serialises every byte-affecting build input for `buildFingerprint`:
  * `BUILD_TABLES` (every renderer/index.html patch table and constant),
  * `ASAR_HOOK_LINE`/`ASAR_HOOK_ANCHOR` (the anchor's length decides the
- * asar's space-padding), `PG_JS`, `BLUR_M`/`BLUR_CLANG_ARGS`,
+ * asar's space-padding), `PV_JS`, `BLUR_M`/`BLUR_CLANG_ARGS`,
  * `DEAD_UPDATE_YML`, and the resolved terminal metrics — an edit to a patch,
  * the main-process hook, the blur addon or its compiler flags, the updater
  * neutering text, or the Ghostty derivation all land here. RegExp values
@@ -70,7 +70,7 @@ export function serialiseFingerprintInputs(
       BUILD_TABLES,
       ASAR_HOOK_LINE,
       ASAR_HOOK_ANCHOR: overrides.asarHookAnchor ?? ASAR_HOOK_ANCHOR,
-      PG_JS,
+      PV_JS,
       BLUR_M,
       BLUR_CLANG_ARGS: overrides.blurClangArgs ?? BLUR_CLANG_ARGS,
       DEAD_UPDATE_YML: overrides.deadUpdateYml ?? DEAD_UPDATE_YML,
@@ -85,7 +85,7 @@ export function buildFingerprint(term: TermMetrics): string {
 }
 
 export function stampFor(version: string, fingerprint: string): string {
-  return `${version}|glass=${fingerprint}`;
+  return `${version}|vibrancy=${fingerprint}`;
 }
 
 /** Reads `CFBundleShortVersionString` out of the bundle's Info.plist. */
@@ -159,9 +159,9 @@ export async function buildStaging(opts: {
 
     report.push(...ghosttyNotes);
 
-    // 4. pg.js (no note of its own — the hook it enables is the asar note
+    // 4. pv.js (no note of its own — the hook it enables is the asar note
     // above) and blur.node.
-    await writeFile(join(staging, "Contents", "Resources", "pg.js"), PG_JS, "utf8");
+    await writeFile(join(staging, "Contents", "Resources", "pv.js"), PV_JS, "utf8");
     const blurNote = await compileBlur(join(staging, "Contents", "Resources", "blur.node"));
     report.push(blurNote);
 

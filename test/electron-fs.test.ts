@@ -36,7 +36,7 @@ function runInElectron(code: string): { status: number | null; output: string } 
 }
 
 test("sweepOlderPristine removes an old bundle containing app.asar under Electron", { skip }, (t) => {
-  const cache = mkdtempSync(join(tmpdir(), "glass-efs-"));
+  const cache = mkdtempSync(join(tmpdir(), "vibrancy-efs-"));
   t.after(() => rmSync(cache, { recursive: true, force: true }));
   bundleWithAsar(join(cache, "Paseo-0.0.1.app"));
 
@@ -50,7 +50,7 @@ test("sweepOlderPristine removes an old bundle containing app.asar under Electro
 });
 
 test("buildStaging replaces a staging copy containing app.asar and reads the archive under Electron", { skip }, (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-efs-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-efs-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   // Source has a real archive but no app-dist, so the build gets past
   // `rm(staging)`, ditto and the asar read/patch/write, then fails at the

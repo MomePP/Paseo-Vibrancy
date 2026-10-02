@@ -1,7 +1,7 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
-import { GlassSettingsSchema } from "./glass.ts";
+import { VibrancySettingsSchema } from "./vibrancy.ts";
 
 export const ReleaseSchema = z.object({
   version: z.string(),
@@ -12,9 +12,9 @@ export const ReleaseSchema = z.object({
 
 export type Release = z.infer<typeof ReleaseSchema>;
 
-export const GlassStatusSchema = z.object({
+export const VibrancyStatusSchema = z.object({
   runningVersion: z.string().nullable(),
-  runningGlassBuild: z.boolean(),
+  runningVibrancyBuild: z.boolean(),
   builtFrom: z.string().nullable(),
   fingerprintMatches: z.boolean(),
   latest: ReleaseSchema.nullable(),
@@ -23,12 +23,12 @@ export const GlassStatusSchema = z.object({
   building: z.boolean(),
 });
 
-export type GlassStatus = z.infer<typeof GlassStatusSchema>;
+export type VibrancyStatus = z.infer<typeof VibrancyStatusSchema>;
 
 export const statusRpc = defineRpc({
   name: "vibrancy.status",
   input: z.object({}),
-  output: GlassStatusSchema,
+  output: VibrancyStatusSchema,
 });
 
 export const checkUpdateRpc = defineRpc({
@@ -53,14 +53,14 @@ export const buildRpc = defineRpc({
   }),
 });
 
-export const getGlassRpc = defineRpc({
-  name: "vibrancy.get-glass",
+export const getSettingsRpc = defineRpc({
+  name: "vibrancy.get-settings",
   input: z.object({}),
-  output: GlassSettingsSchema,
+  output: VibrancySettingsSchema,
 });
 
-export const setGlassRpc = defineRpc({
-  name: "vibrancy.set-glass",
-  input: GlassSettingsSchema,
-  output: GlassSettingsSchema,
+export const setSettingsRpc = defineRpc({
+  name: "vibrancy.set-settings",
+  input: VibrancySettingsSchema,
+  output: VibrancySettingsSchema,
 });

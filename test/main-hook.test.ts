@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
 import vm from "node:vm";
 
-import { PG_JS } from "../server/main-hook.ts";
+import { PV_JS } from "../server/main-hook.ts";
 
 type Listener = (...args: unknown[]) => void;
 
@@ -50,9 +50,9 @@ function makeWindow(): FakeWindow {
   return win;
 }
 
-// Evaluates PG_JS in a fresh vm context against a real settings directory
+// Evaluates PV_JS in a fresh vm context against a real settings directory
 // (real fs + real fs.watch) with fake electron/process.dlopen.
-function loadPgJs(userDataDir: string): Sandbox {
+function loadPvJs(userDataDir: string): Sandbox {
   const windows: FakeWindow[] = [];
   const blurCalls: BlurCall[] = [];
   const createdListeners: Listener[] = [];
@@ -97,7 +97,7 @@ function loadPgJs(userDataDir: string): Sandbox {
     clearTimeout,
     console,
   });
-  vm.runInContext(PG_JS, context);
+  vm.runInContext(PV_JS, context);
 
   return {
     windows,
@@ -114,10 +114,10 @@ function loadPgJs(userDataDir: string): Sandbox {
 }
 
 test("applies blur 30 with no material by default (no settings file)", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-pg-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
 
-  const sandbox = loadPgJs(dir);
+  const sandbox = loadPvJs(dir);
   const win = makeWindow();
   sandbox.fireBrowserWindowCreated(win);
 
@@ -125,11 +125,11 @@ test("applies blur 30 with no material by default (no settings file)", (t) => {
   assert.equal(sandbox.blurCalls.at(-1)?.radius, 30);
 });
 
-test("re-applies glass when a window emits show (not yet ordered on screen at creation)", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-pg-"));
+test("re-applies vibrancy when a window emits show (not yet ordered on screen at creation)", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
 
-  const sandbox = loadPgJs(dir);
+  const sandbox = loadPvJs(dir);
   const win = makeWindow();
   sandbox.fireBrowserWindowCreated(win);
   sandbox.blurCalls.length = 0;
@@ -142,11 +142,11 @@ test("re-applies glass when a window emits show (not yet ordered on screen at cr
 });
 
 test("material switches off blur", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-pg-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  writeFileSync(join(dir, "paseo-glass.json"), JSON.stringify({ material: "hud" }));
+  writeFileSync(join(dir, "paseo-vibrancy.json"), JSON.stringify({ material: "hud" }));
 
-  const sandbox = loadPgJs(dir);
+  const sandbox = loadPvJs(dir);
   const win = makeWindow();
   sandbox.fireBrowserWindowCreated(win);
 
@@ -155,11 +155,11 @@ test("material switches off blur", (t) => {
 });
 
 test("corrupt settings file falls back to defaults", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-pg-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  writeFileSync(join(dir, "paseo-glass.json"), "{nope");
+  writeFileSync(join(dir, "paseo-vibrancy.json"), "{nope");
 
-  const sandbox = loadPgJs(dir);
+  const sandbox = loadPvJs(dir);
   const win = makeWindow();
   sandbox.fireBrowserWindowCreated(win);
 
@@ -168,17 +168,17 @@ test("corrupt settings file falls back to defaults", (t) => {
 });
 
 test("file change re-applies to open windows", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-pg-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
 
-  const sandbox = loadPgJs(dir);
+  const sandbox = loadPvJs(dir);
   const win = makeWindow();
   sandbox.fireBrowserWindowCreated(win);
 
-  const settingsFile = join(dir, "paseo-glass.json");
+  const settingsFile = join(dir, "paseo-vibrancy.json");
   const payload = JSON.stringify({ material: "sidebar" });
 
-  // Real waits (not fake timers): PG_JS's own fs.watch + 50 ms debounce run on
+  // Real waits (not fake timers): PV_JS's own fs.watch + 50 ms debounce run on
   // the host event loop inside a vm context we don't control the clock of, so
   // this polls for the real platform fs.watch -> setTimeout signal instead of
   // guessing a fixed duration. macOS's FSEvents-backed fs.watch can also miss
@@ -203,9 +203,9 @@ test("file change re-applies to open windows", async (t) => {
 });
 
 test("module export is true", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-pg-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-pv-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
 
-  const sandbox = loadPgJs(dir);
+  const sandbox = loadPvJs(dir);
   assert.equal(sandbox.module.exports, true);
 });

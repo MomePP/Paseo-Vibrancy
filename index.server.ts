@@ -22,7 +22,7 @@ import type { PluginServerContext } from "@getpaseo/plugin/server";
 import type { PluginCleanup } from "@getpaseo/plugin";
 
 import { DEFAULT_STAGING, appVersion, buildFingerprint, buildStaging as buildStagingDefault, execName } from "./server/build.ts";
-import { DEFAULT_GLASS_FILE, readGlass, writeGlass } from "./server/glass-file.ts";
+import { DEFAULT_SETTINGS_FILE, readSettings, writeSettings } from "./server/settings-file.ts";
 import { resolveTerm } from "./server/ghostty.ts";
 import {
   DEFAULT_CACHE_DIR,
@@ -31,11 +31,11 @@ import {
   downloadVerified as downloadVerifiedDefault,
   fetchRelease as fetchReleaseDefault,
 } from "./server/release.ts";
-import { isGlassBuild, readStamp, runningBundle } from "./server/status.ts";
+import { isVibrancyBuild, readStamp, runningBundle } from "./server/status.ts";
 import { startSwap as startSwapDefault } from "./server/swap.ts";
-import { buildRpc, checkUpdateRpc, getGlassRpc, setGlassRpc, statusRpc } from "./shared/rpc.ts";
+import { buildRpc, checkUpdateRpc, getSettingsRpc, setSettingsRpc, statusRpc } from "./shared/rpc.ts";
 import type { Release } from "./shared/rpc.ts";
-import type { GlassSettings } from "./shared/glass.ts";
+import type { VibrancySettings } from "./shared/vibrancy.ts";
 
 export const DEFAULT_TARGET = join(homedir(), "Applications", "Paseo-Vibrancy.app");
 
@@ -73,8 +73,8 @@ export class BuildQueue {
   }
 }
 
-export type GlassHandlerDeps = {
-  glassFile?: string;
+export type VibrancyHandlerDeps = {
+  settingsFile?: string;
   execPath?: string;
   staging?: string;
   target?: string;
@@ -99,8 +99,8 @@ function reportFromError(error: unknown): string[] {
   return [];
 }
 /** Builds the five RPC handlers against `deps` (all optional, defaulting to the real filesystem/network). */
-export function createHandlers(deps: GlassHandlerDeps = {}) {
-  const glassFile = deps.glassFile ?? DEFAULT_GLASS_FILE;
+export function createHandlers(deps: VibrancyHandlerDeps = {}) {
+  const settingsFile = deps.settingsFile ?? DEFAULT_SETTINGS_FILE;
   const execPath = deps.execPath ?? process.execPath;
   const staging = deps.staging ?? DEFAULT_STAGING;
   const target = deps.target ?? DEFAULT_TARGET;
@@ -131,7 +131,7 @@ export function createHandlers(deps: GlassHandlerDeps = {}) {
     }
     return {
       runningVersion,
-      runningGlassBuild: bundle !== null && isGlassBuild(bundle),
+      runningVibrancyBuild: bundle !== null && isVibrancyBuild(bundle),
       builtFrom: stamp?.version ?? null,
       fingerprintMatches: stamp !== null && stamp.fingerprint === buildFingerprint(resolveTerm(ghosttyPath).term),
       latest,
@@ -194,16 +194,16 @@ export function createHandlers(deps: GlassHandlerDeps = {}) {
     return { ok: true, report: [], error: null };
   }
 
-  async function getGlass(): Promise<GlassSettings> {
-    return readGlass(glassFile);
+  async function getSettings(): Promise<VibrancySettings> {
+    return readSettings(settingsFile);
   }
 
-  async function setGlass(settings: GlassSettings): Promise<GlassSettings> {
-    writeGlass(settings, glassFile);
+  async function setSettings(settings: VibrancySettings): Promise<VibrancySettings> {
+    writeSettings(settings, settingsFile);
     return settings;
   }
 
-  return { status, checkUpdate, build, getGlass, setGlass, queue };
+  return { status, checkUpdate, build, getSettings, setSettings, queue };
 }
 
 export default function contribute(server: PluginServerContext): PluginCleanup {
@@ -211,7 +211,7 @@ export default function contribute(server: PluginServerContext): PluginCleanup {
   server.handle(statusRpc, async () => handlers.status());
   server.handle(checkUpdateRpc, async () => handlers.checkUpdate());
   server.handle(buildRpc, async (input) => handlers.build(input));
-  server.handle(getGlassRpc, async () => handlers.getGlass());
-  server.handle(setGlassRpc, async (input) => handlers.setGlass(input));
+  server.handle(getSettingsRpc, async () => handlers.getSettings());
+  server.handle(setSettingsRpc, async (input) => handlers.setSettings(input));
   return () => {};
 }

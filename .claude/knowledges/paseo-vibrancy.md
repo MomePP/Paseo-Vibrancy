@@ -15,24 +15,6 @@ The companion oxocarbon theme lives in a separate repo/plugin,
 the oxocarbon ANSI palette to the terminal regardless of which Paseo theme
 is active.
 
-## A note on names kept for compatibility
-
-Several on-disk and in-bundle names still say glass rather than vibrancy:
-the generated main-process hook file `pg.js`, the build stamp
-`.glass-build` (format `<version>|glass=<fingerprint>`), the settings file
-`~/Library/Application Support/Paseo/paseo-glass.json`, the download cache
-`~/Library/Caches/paseo-glass/`, the swap log
-`~/Library/Logs/paseo-glass-swap.log`, the CSS variables `--paseo-tint`/
-`--paseo-pane-bg`, and the patched/staging app bundles
-`~/Applications/Paseo-Vibrancy.app` / `~/Applications/.Paseo-Vibrancy.staging.app`
-(these two already say Vibrancy, not glass). These names are baked into
-copies that may already be built and running on a user's machine; renaming
-them would silently break an existing installation's settings, cache, or
-stamp comparison. Glass is also simply the name of the visual effect
-itself — the settings schema (`shared/glass.ts`), its `GlassSettings` type,
-and the Glass section of the settings screen keep that vocabulary
-deliberately, independent of the plugin's own name.
-
 ## Why a patched copy at all, and why it has to be a copy
 
 Established by experiment against Paseo 0.11.0-beta.3:
@@ -61,11 +43,11 @@ paseo-plugin.json          { "id": "paseo-vibrancy", "requirements": { "paseo": 
 package.json, tsconfig.json
 index.client.tsx            settings screen contribution (renderer)
 index.server.ts             registers the five RPC handlers (daemon subprocess)
-client/                     GlassScreen, RangeRow, glass-css.ts (CSS variable applier)
+client/                     VibrancyScreen, RangeRow, vibrancy-css.ts (CSS variable applier)
 server/                     asar.ts, build.ts, ghostty.ts, main-hook.ts, blur.ts,
                              patch-engine.ts, patch-renderer.ts, renderer-patches.ts,
-                             release.ts, status.ts, swap.ts, glass-file.ts
-shared/                     rpc.ts (zod contracts), glass.ts (settings schema/defaults)
+                             release.ts, status.ts, swap.ts, settings-file.ts
+shared/                     rpc.ts (zod contracts), vibrancy.ts (settings schema/defaults)
 test/                       node --test
 ```
 
@@ -73,13 +55,13 @@ test/                       node --test
 | --- | --- | --- |
 | `index.client.tsx`, `client/` | renderer | Vibrancy settings screen, live `--paseo-*` CSS variables, update notice |
 | `index.server.ts`, `server/` | daemon subprocess (full Node) | release fetch/verify, build, swap, settings file |
-| `pg.js` (generated into the bundle) | Paseo's Electron main process | per-window material/blur, watches the settings file |
+| `pv.js` (generated into the bundle) | Paseo's Electron main process | per-window material/blur, watches the settings file |
 | `blur.node` (compiled into the bundle) | Paseo's Electron main process | `setBlur(handle, radius)` via private CGS calls, `dlsym`'d so a missing symbol is a no-op, not a crash |
 
-## Live glass settings
+## Live appearance settings
 
-Schema lives in `shared/glass.ts`, persisted by the server to
-`~/Library/Application Support/Paseo/paseo-glass.json`:
+Schema lives in `shared/vibrancy.ts`, persisted by the server to
+`~/Library/Application Support/Paseo/paseo-vibrancy.json`:
 
 ```ts
 { material: "none" | "sidebar" | "hud" | "under-window" | "fullscreen-ui"
@@ -92,27 +74,27 @@ Schema lives in `shared/glass.ts`, persisted by the server to
 
 Defaults: `{ material: "none", blurRadius: 30, tint: 0.85, paneGlass: true }`.
 
-- **Main process (`pg.js`).** Loaded by the asar window-options hook line
-  `transparent:require(process.resourcesPath+"/pg.js"),visualEffectState:"active",`
+- **Main process (`pv.js`).** Loaded by the asar window-options hook line
+  `transparent:require(process.resourcesPath+"/pv.js"),visualEffectState:"active",`
   — 79 bytes, space-padded into the 80-byte original
   `backgroundColor: (0, window_manager_js_1.getWindowBackgroundColor)(systemTheme),`
-  slot so every byte offset inside the asar stays put. `pg.js` ends with
+  slot so every byte offset inside the asar stays put. `pv.js` ends with
   `module.exports = true`, so the `require` yields `transparent: true`.
   `visualEffectState` rides in the same slot because Electron has no runtime
   setter for it — it only keeps a material from going flat when the window
   loses focus, read once by `setVibrancy`. Material ≠ `"none"`:
   `win.setVibrancy(material)` and `blur.setBlur(handle, 0)`. Material
   `"none"`: `win.setVibrancy(null)` and `blur.setBlur(handle, blurRadius)`.
-- **Renderer (`client/glass-css.ts`).** On load and on every change, sets on
+- **Renderer (`client/vibrancy-css.ts`).** On load and on every change, sets on
   `document.documentElement`:
   - `--paseo-tint` — consumed by the body wash rule:
     `background-color: color-mix(in srgb, var(--colors-surface1, <stock hex>) calc(var(--paseo-tint, <default>) * 100%), transparent);`
   - `--paseo-pane-bg` — `transparent` when `paneGlass`, else
     `var(--colors-surface1)`; consumed by the navigator backdrop patch.
 - **Vibrancy screen** (`addSettingsScreen({ id: "vibrancy", title: "Vibrancy", … })`):
-  a Glass section with Material (`SettingsSelect`), Blur radius and Tint
+  an Appearance section with Material (`SettingsSelect`), Blur radius and Tint
   (styled `<input type="range">`), Main pane glass (`SettingsSwitch`). Every
-  change calls `setGlass`; tint/pane apply locally at once rather than
+  change calls `setSettings`; tint/pane apply locally at once rather than
   waiting on the round trip. In stock (unpatched) Paseo the screen shows
   "Not running the Vibrancy build" with only the Build card active.
 
@@ -123,7 +105,7 @@ Defaults: `{ material: "none", blurRadius: 30, tint: 0.85, paneGlass: true }`.
 | `vibrancy.status` | — | running version, built-from version, fingerprint match, latest known release, last build report, last build error, `building` |
 | `vibrancy.check-update` | — | latest release `{version, zipUrl, sha512, size}` or `null`, plus an error string |
 | `vibrancy.build` | `{ version?: string, restart: boolean }` | `{ ok, report: [], error }` — returns immediately once queued (see "Build is asynchronous" below), never waits for the build itself |
-| `vibrancy.get-glass` / `vibrancy.set-glass` | settings | settings |
+| `vibrancy.get-settings` / `vibrancy.set-settings` | settings | settings |
 
 **Gotcha: RPC names must be lowercase.** `defineRpc` throws on a camelCase
 `name` — the SDK enforces a lowercase-with-dots pattern, pinned by a
@@ -148,7 +130,7 @@ wrong silently produces a theme that applies but reads wrong.
    the electron-builder yml just far enough to pull the `Paseo-<ver>-arm64.zip`
    entry's `sha512`/`size` out of its `files:` list (no YAML dependency — the
    format is small and fixed).
-3. Download to `~/Library/Caches/paseo-glass/`, hashing while streaming
+3. Download to `~/Library/Caches/paseo-vibrancy/`, hashing while streaming
    (zips run ~179 MB; nothing is buffered in memory). Size and base64 sha512
    must both match what the yml published, or the download is rejected and
    the cache dir is left exactly as found.
@@ -157,7 +139,7 @@ wrong silently produces a theme that applies but reads wrong.
    on the extracted bundle. This is the identity check (really Paseo, not a
    same-named impostor); the sha512 above is the integrity check (the bytes
    electron-builder actually published). Both must pass.
-5. Move the verified app into `~/Library/Caches/paseo-glass/Paseo-<ver>.app`
+5. Move the verified app into `~/Library/Caches/paseo-vibrancy/Paseo-<ver>.app`
    as the build source; `sweepOlderPristine` deletes strictly-older cached
    copies for the same keep-version (parse failures are left alone rather
    than guessed at).
@@ -183,7 +165,7 @@ version being built (`cachedPristine`).
    padding, flash-guard → tint rule. Ghostty-derived terminal metrics come
    from `server/ghostty.ts` (`resolveTerm`, reading `~/.config/ghostty/config`;
    falls back to fixed constants when the file is missing).
-4. Write `pg.js` (`server/main-hook.ts`); compile `blur.node`
+4. Write `pv.js` (`server/main-hook.ts`); compile `blur.node`
    (`server/blur.ts`) with `clang -bundle -undefined dynamic_lookup -framework AppKit -fobjc-arc`.
    A failed compile reports `MISSED window blur: <reason>` but materials
    keep working — blur is best-effort, not load-bearing.
@@ -195,7 +177,7 @@ version being built (`cachedPristine`).
 6. `PlistBuddy -c 'Set :ElectronAsarIntegrity:Resources/app.asar:hash …'`
    (not `plutil -replace` — the key name contains a dot, which `plutil`
    would read as two nested keys).
-7. Write the build stamp (`.glass-build`, format `<version>|glass=<fingerprint>`,
+7. Write the build stamp (`.vibrancy-build`, format `<version>|vibrancy=<fingerprint>`,
    `\nmissed` appended if any patch was `MISSED`) **before** signing — once
    the bundle is sealed, anything added under `Contents/Resources`  makes
    `codesign --verify` report a missing sealed resource.
@@ -204,7 +186,7 @@ version being built (`cachedPristine`).
    runtime refuses to launch unsigned.
 
 `buildFingerprint` hashes every byte-affecting input — `BUILD_TABLES` (every
-renderer/html patch table and constant), the asar hook anchor/line, `pg.js`,
+renderer/html patch table and constant), the asar hook anchor/line, `pv.js`,
 the blur source and its clang flags, `DEAD_UPDATE_YML`, and the resolved
 Ghostty term metrics — so any edit to a patch, the main-process hook, blur,
 the updater-neutering text, or the Ghostty derivation changes the stamp.
@@ -225,7 +207,7 @@ through `BuildQueue`. The job records its own outcome — `lastReport` and a
 or failure, including the partial `report` `buildStaging` attaches to a
 thrown error (notes collected before the failing step). `restart: true`
 only calls `startSwap` once the build has actually succeeded.
-`client/GlassScreen.tsx` polls `vibrancy.status` every second while
+`client/VibrancyScreen.tsx` polls `vibrancy.status` every second while
 `building` is true, keeping the build buttons disabled, then surfaces the
 finished report or toasts `lastError`.
 
@@ -237,7 +219,7 @@ Paseo — and this plugin's own server subprocess, a child of Paseo's daemon —
 quits. The script itself traps SIGHUP so the process group's
 controlling-terminal hangup on quit can't cut it short either. Every step
 (and the failure reason) is appended, timestamped, to
-`~/Library/Logs/paseo-glass-swap.log` (`exec >>LOG 2>&1` at the top of the
+`~/Library/Logs/paseo-vibrancy-swap.log` (`exec >>LOG 2>&1` at the top of the
 script) — nothing else observes a detached, unref'd child's output, so
 without the log a silent failure here just looks like Paseo never reopened.
 
@@ -301,7 +283,7 @@ update completing).
 - **RPC names must be lowercase** — see above; `defineRpc` throws otherwise.
 - **Theme tokens differ from Paseo's internal names** — see above; map by
   position (`buildDarkSemanticColors`'s own order), not by matching names.
-- **`fs.watch` arming race in `pg.js`.** The settings-file watcher is
+- **`fs.watch` arming race in `pv.js`.** The settings-file watcher is
   debounced (50 ms) and set up once at load; a settings write that lands in
   the narrow window before the watcher is armed is missed until the *next*
   write. The test covering this makes the race practically unobservable by
@@ -315,7 +297,7 @@ update completing).
   `BrowserWindow` with `show: false` and reveals it on `ready-to-show`; an
   NSWindow that has never been ordered on screen has no window-server number
   yet, so a blur call issued from `browser-window-created` targets nothing.
-  `pg.js` re-applies (`apply(win)`) on the window's own `'show'` event, not
+  `pv.js` re-applies (`apply(win)`) on the window's own `'show'` event, not
   just at creation.
 - **`runningBundle` must walk to the outermost `.app`.** The daemon's own
   `execPath` resolves inside
@@ -342,7 +324,7 @@ There is no CLI RPC for `vibrancy.build`. To drive a real build without
 restarting Paseo (e.g. after installing/reloading the plugin), import
 `createHandlers` from `index.server.ts` in a throwaway Node script and call
 `await handlers.build({ version, restart: false })` with no injected deps —
-it uses the real filesystem/network defaults (`~/Library/Caches/paseo-glass/`,
+it uses the real filesystem/network defaults (`~/Library/Caches/paseo-vibrancy/`,
 `~/Applications/.Paseo-Vibrancy.staging.app`). `build()` itself resolves as
 soon as the job is queued (see "Build is asynchronous" above);
 `await handlers.queue.whenIdle()` afterward to wait for the real build to

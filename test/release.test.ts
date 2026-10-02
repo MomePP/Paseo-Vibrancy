@@ -152,11 +152,11 @@ test("verifyPaseoSignature rejects a non-Paseo (Apple-signed) app", async () => 
 });
 
 test("downloadVerified rejects a sha512 mismatch and leaves the cache dir empty", async (t) => {
-  const srcDir = mkdtempSync(join(tmpdir(), "glass-release-src-"));
+  const srcDir = mkdtempSync(join(tmpdir(), "vibrancy-release-src-"));
   t.after(() => rmSync(srcDir, { recursive: true, force: true }));
   writeFileSync(join(srcDir, "marker.txt"), "not a real app, just zip payload\n");
 
-  const zipDir = mkdtempSync(join(tmpdir(), "glass-release-zip-"));
+  const zipDir = mkdtempSync(join(tmpdir(), "vibrancy-release-zip-"));
   t.after(() => rmSync(zipDir, { recursive: true, force: true }));
   const zipPath = join(zipDir, "Paseo-0.11.0-beta.3-arm64.zip");
   await execFileAsync("ditto", ["-c", "-k", "--sequesterRsrc", srcDir, zipPath]);
@@ -171,7 +171,7 @@ test("downloadVerified rejects a sha512 mismatch and leaves the cache dir empty"
   const address = server.address();
   if (address === null || typeof address === "string") throw new Error("expected AddressInfo");
 
-  const cacheDir = mkdtempSync(join(tmpdir(), "glass-release-cache-"));
+  const cacheDir = mkdtempSync(join(tmpdir(), "vibrancy-release-cache-"));
   t.after(() => rmSync(cacheDir, { recursive: true, force: true }));
 
   const release: Release = {
@@ -186,7 +186,7 @@ test("downloadVerified rejects a sha512 mismatch and leaves the cache dir empty"
 });
 
 test("sweepOlderPristine removes only strictly-older Paseo-*.app entries", async (t) => {
-  const cacheDir = mkdtempSync(join(tmpdir(), "glass-release-sweep-cache-"));
+  const cacheDir = mkdtempSync(join(tmpdir(), "vibrancy-release-sweep-cache-"));
   t.after(() => rmSync(cacheDir, { recursive: true, force: true }));
 
   for (const name of ["Paseo-0.11.0-beta.5.app", "Paseo-0.11.0-beta.1.app", "Paseo-0.11.0-beta.3.app"]) {
@@ -209,7 +209,7 @@ test("sweepOlderPristine removes only strictly-older Paseo-*.app entries", async
 });
 
 test("cachedPristine returns null when no pristine copy exists and the path once one does", () => {
-  const cacheDir = mkdtempSync(join(tmpdir(), "glass-release-cached-"));
+  const cacheDir = mkdtempSync(join(tmpdir(), "vibrancy-release-cached-"));
   try {
     assert.equal(cachedPristine("0.11.0-beta.3", cacheDir), null);
     writeFileSync(join(cacheDir, "not-an-app"), "x");

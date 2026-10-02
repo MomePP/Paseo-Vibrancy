@@ -1,5 +1,5 @@
 /**
- * `PG_JS` is the CommonJS source written to `Contents/Resources/pg.js` inside
+ * `PV_JS` is the CommonJS source written to `Contents/Resources/pv.js` inside
  * the patched Paseo app bundle. It is loaded by the asar hook line
  * (`server/asar.ts`'s `ASAR_HOOK_LINE`) while the first `BrowserWindow`'s
  * options object is still being evaluated — i.e. before any window exists —
@@ -10,7 +10,7 @@
  * guaranteed regardless of what happens inside it.
  */
 
-export const PG_JS = `"use strict";
+export const PV_JS = `"use strict";
 
 var MATERIALS = [
   "none",
@@ -39,7 +39,7 @@ function clampNumber(value, fallback, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function parseGlass(raw) {
+function parseVibrancy(raw) {
   var input = raw && typeof raw === "object" ? raw : {};
   return {
     material: MATERIALS.indexOf(input.material) !== -1 ? input.material : DEFAULTS.material,
@@ -76,14 +76,14 @@ try {
     }
   }
 
-  var settingsPath = path.join(app.getPath("userData"), "paseo-glass.json");
+  var settingsPath = path.join(app.getPath("userData"), "paseo-vibrancy.json");
 
   function readSettings() {
     try {
       var raw = fs.readFileSync(settingsPath, "utf8");
-      return parseGlass(JSON.parse(raw));
+      return parseVibrancy(JSON.parse(raw));
     } catch (readErr) {
-      return parseGlass({});
+      return parseVibrancy({});
     }
   }
 

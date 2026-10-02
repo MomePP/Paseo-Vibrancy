@@ -1,6 +1,6 @@
 /**
- * The Vibrancy settings screen. Appearance edits `GlassSettings` live (CSS applied
- * immediately, `setGlassRpc` debounced 150ms so dragging a slider doesn't
+ * The Vibrancy settings screen. Appearance edits `VibrancySettings` live (CSS applied
+ * immediately, `setSettingsRpc` debounced 150ms so dragging a slider doesn't
  * flood the server). Build reports the running/built-from/latest versions
  * and drives rebuild/update, both of which restart Paseo.
  *
@@ -25,15 +25,15 @@ import {
 } from "@getpaseo/plugin/client/ui";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 
-import { GLASS_DEFAULTS, MATERIALS } from "../shared/glass.ts";
-import type { GlassSettings } from "../shared/glass.ts";
-import { buildRpc, checkUpdateRpc, getGlassRpc, setGlassRpc, statusRpc } from "../shared/rpc.ts";
-import type { GlassStatus } from "../shared/rpc.ts";
+import { VIBRANCY_DEFAULTS, MATERIALS } from "../shared/vibrancy.ts";
+import type { VibrancySettings } from "../shared/vibrancy.ts";
+import { buildRpc, checkUpdateRpc, getSettingsRpc, setSettingsRpc, statusRpc } from "../shared/rpc.ts";
+import type { VibrancyStatus } from "../shared/rpc.ts";
 import { compareVersions } from "../shared/version.ts";
-import { applyGlassCss } from "./glass-css.ts";
+import { applyVibrancyCss } from "./vibrancy-css.ts";
 import RangeRow from "./RangeRow.tsx";
 
-const SET_GLASS_DEBOUNCE_MS = 150;
+const SET_SETTINGS_DEBOUNCE_MS = 150;
 
 /** `0-60` for the blur slider's native-platform fallback (discrete steps). */
 const BLUR_STEPS = [0, 10, 20, 30, 40, 50, 60];
@@ -49,41 +49,41 @@ const MATERIAL_OPTIONS = MATERIALS.map((material) => ({
   value: material,
 }));
 
-export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
+export default function VibrancyScreen({ theme, layout }: PluginSurfaceProps) {
   const toast = useToast();
-  const getGlass = useRpc(getGlassRpc);
-  const setGlass = useRpc(setGlassRpc);
+  const getSettings = useRpc(getSettingsRpc);
+  const setSettingsRemote = useRpc(setSettingsRpc);
   const fetchStatus = useRpc(statusRpc);
   const checkUpdate = useRpc(checkUpdateRpc);
   const build = useRpc(buildRpc);
 
-  const [settings, setSettings] = useState<GlassSettings>({ ...GLASS_DEFAULTS });
+  const [settings, setSettings] = useState<VibrancySettings>({ ...VIBRANCY_DEFAULTS });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [status, setStatus] = useState<GlassStatus | null>(null);
+  const [status, setStatus] = useState<VibrancyStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const unmountedRef = useRef(false);
   /** The most recently edited settings not yet confirmed saved; flushed on unmount. */
-  const pendingRef = useRef<GlassSettings | null>(null);
+  const pendingRef = useRef<VibrancySettings | null>(null);
 
   const refreshStatus = () => {
     fetchStatus({})
       .then(setStatus)
       .catch((error: unknown) => {
-        toast.error(error instanceof Error ? error.message : "Failed to load Glass status");
+        toast.error(error instanceof Error ? error.message : "Failed to load Vibrancy status");
       });
   };
 
   useEffect(() => {
-    getGlass({})
+    getSettings({})
       .then((loaded) => {
         setSettings(loaded);
         setSettingsLoaded(true);
-        applyGlassCss(loaded);
+        applyVibrancyCss(loaded);
       })
       .catch((error: unknown) => {
-        toast.error(error instanceof Error ? error.message : "Failed to load Glass settings");
+        toast.error(error instanceof Error ? error.message : "Failed to load Vibrancy settings");
       });
     refreshStatus();
     return () => {
@@ -93,28 +93,28 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
       const pending = pendingRef.current;
       pendingRef.current = null;
       if (pending) {
-        setGlass(pending).catch((error: unknown) => {
-          console.error("[glass] failed to flush glass settings on unmount", error);
+        setSettingsRemote(pending).catch((error: unknown) => {
+          console.error("[vibrancy] failed to flush vibrancy settings on unmount", error);
         });
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function updateSettings(next: GlassSettings) {
+  function updateSettings(next: VibrancySettings) {
     setSettings(next);
-    applyGlassCss(next);
+    applyVibrancyCss(next);
     pendingRef.current = next;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const toSave = pendingRef.current;
       pendingRef.current = null;
       if (toSave) {
-        setGlass(toSave).catch((error: unknown) => {
-          toast.error(error instanceof Error ? error.message : "Failed to save glass settings");
+        setSettingsRemote(toSave).catch((error: unknown) => {
+          toast.error(error instanceof Error ? error.message : "Failed to save vibrancy settings");
         });
       }
-    }, SET_GLASS_DEBOUNCE_MS);
+    }, SET_SETTINGS_DEBOUNCE_MS);
   }
 
   /**
@@ -132,12 +132,12 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
       if (unmountedRef.current) {
         return;
       }
-      let latestStatus: GlassStatus;
+      let latestStatus: VibrancyStatus;
       try {
         latestStatus = await fetchStatus({});
       } catch (error) {
         if (!unmountedRef.current) {
-          toast.error(error instanceof Error ? error.message : "Failed to load Glass status");
+          toast.error(error instanceof Error ? error.message : "Failed to load Vibrancy status");
         }
         return;
       }
@@ -195,17 +195,17 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
   }
 
   const isWeb = layout.platform === "web";
-  const runningGlassBuild = status?.runningGlassBuild ?? false;
-  const appearanceDisabled = !settingsLoaded || !runningGlassBuild || busy;
+  const runningVibrancyBuild = status?.runningVibrancyBuild ?? false;
+  const appearanceDisabled = !settingsLoaded || !runningVibrancyBuild || busy;
   const blurDisabled = appearanceDisabled || settings.material !== "none";
   const latest = status?.latest ?? null;
   const updateAvailable =
     latest !== null && status?.runningVersion != null && compareVersions(latest.version, status.runningVersion) > 0;
 
   return (
-    <SettingsSection title="Glass">
+    <SettingsSection title="Appearance">
       <SettingsCard>
-        {!runningGlassBuild && (
+        {!runningVibrancyBuild && (
           <SettingsRow label="Not running the Vibrancy build" hint="Rebuild below to enable live appearance controls." />
         )}
         <SettingsSelect
@@ -303,7 +303,7 @@ export default function GlassScreen({ theme, layout }: PluginSurfaceProps) {
           label="Rebuild & restart"
           hint="Restarts Paseo and interrupts running agents"
           actionLabel="Rebuild & restart"
-          onPress={() => runBuild({ restart: true }, "Rebuilt the Glass copy")}
+          onPress={() => runBuild({ restart: true }, "Rebuilt the Vibrancy copy")}
           disabled={busy || status?.building}
         />
       </SettingsCard>

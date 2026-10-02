@@ -60,7 +60,7 @@ test("patchRenderer skips the settings-sync site when fontFamily and fontSize ar
 });
 
 test("rendererPath resolves the single hashed bundle index.html references", () => {
-  const app = mkdtempSync(join(tmpdir(), "glass-renderer-path-"));
+  const app = mkdtempSync(join(tmpdir(), "vibrancy-renderer-path-"));
   try {
     const webDist = join(app, "Contents", "Resources", "app-dist");
     const jsDir = join(webDist, "_expo", "static", "js", "web");
@@ -74,7 +74,7 @@ test("rendererPath resolves the single hashed bundle index.html references", () 
 });
 
 test("rendererPath throws when index.html references a bundle missing on disk", () => {
-  const app = mkdtempSync(join(tmpdir(), "glass-renderer-path-"));
+  const app = mkdtempSync(join(tmpdir(), "vibrancy-renderer-path-"));
   try {
     const webDist = join(app, "Contents", "Resources", "app-dist");
     mkdirSync(webDist, { recursive: true });

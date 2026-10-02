@@ -32,19 +32,19 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void
 function makeStaging(dir: string, marker: string): string {
   const staging = join(dir, "staging.app");
   mkdirSync(join(staging, "Contents", "Resources"), { recursive: true });
-  writeFileSync(join(staging, "Contents", "Resources", STAMP_NAME), "0.11.0-beta.3|glass=abc123");
+  writeFileSync(join(staging, "Contents", "Resources", STAMP_NAME), "0.11.0-beta.3|vibrancy=abc123");
   writeFileSync(join(staging, "Contents", "Resources", "marker.txt"), marker);
   return staging;
 }
 
 test("swaps staging into target and trashes old", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const staging = makeStaging(dir, "new-build");
     const target = join(dir, "target.app");
     mkdirSync(join(target, "Contents", "Resources"), { recursive: true });
     writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
-    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+    const trashDir = mkdtempSync(join(tmpdir(), "vibrancy-trash-"));
 
     try {
       startSwap({ staging, target, quit: false, open: false, trashDir, logPath: join(dir, "swap.log") });
@@ -69,15 +69,15 @@ test("swaps staging into target and trashes old", async () => {
 });
 
 test("refuses staging without stamp", () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const staging = join(dir, "staging.app");
     mkdirSync(join(staging, "Contents", "Resources"), { recursive: true });
-    // No .glass-build stamp written.
+    // No .vibrancy-build stamp written.
     const target = join(dir, "target.app");
     mkdirSync(join(target, "Contents", "Resources"), { recursive: true });
     writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
-    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+    const trashDir = mkdtempSync(join(tmpdir(), "vibrancy-trash-"));
 
     try {
       assert.throws(
@@ -99,11 +99,11 @@ test("refuses staging without stamp", () => {
 });
 
 test("works when target does not exist yet", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const staging = makeStaging(dir, "first-install");
     const target = join(dir, "target.app");
-    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+    const trashDir = mkdtempSync(join(tmpdir(), "vibrancy-trash-"));
 
     try {
       startSwap({ staging, target, quit: false, open: false, trashDir, logPath: join(dir, "swap.log") });
@@ -121,14 +121,14 @@ test("works when target does not exist yet", async () => {
 });
 
 test("a MISSED stamp is still swappable", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const staging = join(dir, "staging.app");
     mkdirSync(join(staging, "Contents", "Resources"), { recursive: true });
-    writeFileSync(join(staging, "Contents", "Resources", STAMP_NAME), "0.11.0-beta.3|glass=missed");
+    writeFileSync(join(staging, "Contents", "Resources", STAMP_NAME), "0.11.0-beta.3|vibrancy=missed");
     writeFileSync(join(staging, "Contents", "Resources", "marker.txt"), "missed-build");
     const target = join(dir, "target.app");
-    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+    const trashDir = mkdtempSync(join(tmpdir(), "vibrancy-trash-"));
 
     try {
       startSwap({ staging, target, quit: false, open: false, trashDir, logPath: join(dir, "swap.log") });
@@ -144,7 +144,7 @@ test("a MISSED stamp is still swappable", async () => {
 });
 
 test("quotes paths containing spaces and single quotes safely", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const trickyRoot = join(dir, "Paseo Helper's App Support");
     mkdirSync(trickyRoot, { recursive: true });
@@ -234,13 +234,13 @@ test("failure branches reopen the app that was running, not the new target, when
 });
 
 test("logs timestamped steps and the failure reason to logPath", () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const target = join(dir, "target.app");
     mkdirSync(join(target, "Contents", "Resources"), { recursive: true });
     writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
     const staging = join(dir, "no-such-staging.app"); // deliberately never created, forces a failure
-    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+    const trashDir = mkdtempSync(join(tmpdir(), "vibrancy-trash-"));
     const logPath = join(dir, "swap.log");
 
     try {
@@ -260,7 +260,7 @@ test("logs timestamped steps and the failure reason to logPath", () => {
 });
 
 test("a failed trash-move aborts before staging is touched (e.g. a missing trashDir)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const staging = makeStaging(dir, "new-build");
     const target = join(dir, "target.app");
@@ -285,12 +285,12 @@ test("a failed trash-move aborts before staging is touched (e.g. a missing trash
 });
 
 test("a failed staging-move restores the trashed target", () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-swap-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-swap-"));
   try {
     const target = join(dir, "target.app");
     mkdirSync(join(target, "Contents", "Resources"), { recursive: true });
     writeFileSync(join(target, "Contents", "Resources", "marker.txt"), "old-build");
-    const trashDir = mkdtempSync(join(tmpdir(), "glass-trash-"));
+    const trashDir = mkdtempSync(join(tmpdir(), "vibrancy-trash-"));
     const staging = join(dir, "no-such-staging.app"); // deliberately never created
 
     try {

@@ -85,15 +85,15 @@ These come built into every copy and have no setting:
 | Path | Purpose |
 | --- | --- |
 | `~/Applications/Paseo-Vibrancy.app` | The patched copy |
-| `~/Library/Application Support/Paseo/paseo-glass.json` | Live glass settings |
-| `~/Library/Caches/paseo-glass/` | Verified Paseo downloads |
-| `~/Library/Logs/paseo-glass-swap.log` | What happened during the last restart |
+| `~/Library/Application Support/Paseo/paseo-vibrancy.json` | Live glass settings |
+| `~/Library/Caches/paseo-vibrancy/` | Verified Paseo downloads |
+| `~/Library/Logs/paseo-vibrancy-swap.log` | What happened during the last restart |
 
 ## Uninstall
 
 ```sh
 paseo plugin remove paseo-vibrancy
-rm -rf ~/Applications/Paseo-Vibrancy.app ~/Library/Caches/paseo-glass
+rm -rf ~/Applications/Paseo-Vibrancy.app ~/Library/Caches/paseo-vibrancy ~/Library/Application\ Support/Paseo/paseo-vibrancy.json ~/Library/Logs/paseo-vibrancy-swap.log
 ```
 
 Then launch the regular Paseo again.

@@ -21,19 +21,19 @@ export function runningBundle(execPath: string = process.execPath): string | nul
   return appIndex === -1 ? null : parts.slice(0, appIndex + 1).join("/");
 }
 
-export function isGlassBuild(bundle: string): boolean {
+export function isVibrancyBuild(bundle: string): boolean {
   return existsSync(join(bundle, "Contents", "Resources", STAMP_NAME));
 }
 
 export type Stamp = { version: string; fingerprint: string };
 
-/** Parses `<version>|glass=<fingerprint>` (optionally followed by `\nmissed`) out of `bundle`'s stamp file. */
+/** Parses `<version>|vibrancy=<fingerprint>` (optionally followed by `\nmissed`) out of `bundle`'s stamp file. */
 export function readStamp(bundle: string): Stamp | null {
   const stampPath = join(bundle, "Contents", "Resources", STAMP_NAME);
   if (!existsSync(stampPath)) {
     return null;
   }
   const firstLine = readFileSync(stampPath, "utf8").split("\n")[0] ?? "";
-  const match = firstLine.match(/^(.*)\|glass=(.*)$/);
+  const match = firstLine.match(/^(.*)\|vibrancy=(.*)$/);
   return match ? { version: match[1]!, fingerprint: match[2]! } : null;
 }

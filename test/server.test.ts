@@ -5,26 +5,26 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { BuildQueue, createHandlers } from "../index.server.ts";
-import { readGlass, writeGlass } from "../server/glass-file.ts";
-import { isGlassBuild, runningBundle } from "../server/status.ts";
-import { GLASS_DEFAULTS } from "../shared/glass.ts";
+import { readSettings, writeSettings } from "../server/settings-file.ts";
+import { isVibrancyBuild, runningBundle } from "../server/status.ts";
+import { VIBRANCY_DEFAULTS } from "../shared/vibrancy.ts";
 
-test("writeGlass then readGlass round-trips", () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-file-"));
-  const file = join(dir, "paseo-glass.json");
+test("writeSettings then readSettings round-trips", () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-file-"));
+  const file = join(dir, "paseo-vibrancy.json");
   try {
     const settings = { material: "hud" as const, blurRadius: 12, tint: 0.4, paneGlass: false };
-    writeGlass(settings, file);
-    assert.deepEqual(readGlass(file), settings);
+    writeSettings(settings, file);
+    assert.deepEqual(readSettings(file), settings);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("readGlass on missing file falls back to defaults", () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-file-"));
+test("readSettings on missing file falls back to defaults", () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-file-"));
   try {
-    assert.deepEqual(readGlass(join(dir, "missing.json")), GLASS_DEFAULTS);
+    assert.deepEqual(readSettings(join(dir, "missing.json")), VIBRANCY_DEFAULTS);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -39,11 +39,11 @@ test("runningBundle returns null when no segment ends in .app", () => {
   assert.equal(runningBundle("/usr/local/bin/node"), null);
 });
 
-test("isGlassBuild is false for a dir without a stamp", () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-bundle-"));
+test("isVibrancyBuild is false for a dir without a stamp", () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-bundle-"));
   try {
     mkdirSync(join(dir, "Contents", "Resources"), { recursive: true });
-    assert.equal(isGlassBuild(dir), false);
+    assert.equal(isVibrancyBuild(dir), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -65,11 +65,11 @@ test("concurrent build is rejected", async () => {
 });
 
 test("build handler returns before a slow build resolves, then records the report once it finishes", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     const { promise: pending, resolve: release } = Promise.withResolvers<void>();
     const handlers = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: "/usr/local/bin/node",
       cachedPristine: () => join(dir, "pristine.app"),
       buildStaging: async () => {
@@ -95,11 +95,11 @@ test("build handler returns before a slow build resolves, then records the repor
 });
 
 test("build handler rejects a concurrent call immediately instead of queuing it", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     const { promise: pending, resolve: release } = Promise.withResolvers<void>();
     const handlers = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: "/usr/local/bin/node",
       cachedPristine: () => join(dir, "pristine.app"),
       buildStaging: async () => {
@@ -120,10 +120,10 @@ test("build handler rejects a concurrent call immediately instead of queuing it"
 });
 
 test("a thrown build error records lastError and the partial report attached to it, never escapes", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     const handlers = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: "/usr/local/bin/node",
       cachedPristine: () => join(dir, "pristine.app"),
       buildStaging: async () => {
@@ -145,11 +145,11 @@ test("a thrown build error records lastError and the partial report attached to 
 });
 
 test("build handler never restarts when restart is false, even with no running bundle", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     let swapped = false;
     const handlers = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: "/usr/local/bin/node",
       cachedPristine: () => join(dir, "pristine.app"),
       buildStaging: async () => ({ report: ["ok      fake"], missed: false }),
@@ -168,11 +168,11 @@ test("build handler never restarts when restart is false, even with no running b
 });
 
 test("restart:true calls startSwap only once the build succeeds, never on failure", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     let swapped = false;
     const failing = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: "/usr/local/bin/node",
       cachedPristine: () => join(dir, "pristine.app"),
       buildStaging: async () => {
@@ -187,7 +187,7 @@ test("restart:true calls startSwap only once the build succeeds, never on failur
     assert.equal(swapped, false);
 
     const succeeding = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: "/usr/local/bin/node",
       cachedPristine: () => join(dir, "pristine.app"),
       buildStaging: async () => ({ report: ["ok      fake"], missed: false }),
@@ -204,7 +204,7 @@ test("restart:true calls startSwap only once the build succeeds, never on failur
 });
 
 test("build handler defaults version to the running bundle's version when none is requested", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     const bundle = join(dir, "Paseo.app");
     mkdirSync(join(bundle, "Contents", "Resources"), { recursive: true });
@@ -214,7 +214,7 @@ test("build handler defaults version to the running bundle's version when none i
 
     const requestedVersions: Array<string | undefined> = [];
     const handlers = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: join(bundle, "Contents", "MacOS", "Paseo"),
       cachedPristine: (version) => {
         requestedVersions.push(version);
@@ -233,8 +233,8 @@ test("build handler defaults version to the running bundle's version when none i
   }
 });
 
-test("status reflects an injected non-glass running bundle", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+test("status reflects an injected non-vibrancy running bundle", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     const bundle = join(dir, "Paseo.app");
     mkdirSync(join(bundle, "Contents", "Resources"), { recursive: true });
@@ -243,13 +243,13 @@ test("status reflects an injected non-glass running bundle", async () => {
     writeFileSync(join(bundle, "Contents", "Info.plist"), plist, "utf8");
 
     const handlers = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: join(bundle, "Contents", "MacOS", "Paseo"),
     });
 
     const status = await handlers.status();
     assert.equal(status.runningVersion, "1.2.3");
-    assert.equal(status.runningGlassBuild, false);
+    assert.equal(status.runningVibrancyBuild, false);
     assert.equal(status.builtFrom, null);
     assert.equal(status.fingerprintMatches, false);
     assert.equal(status.building, false);
@@ -261,27 +261,27 @@ test("status reflects an injected non-glass running bundle", async () => {
   }
 });
 
-test("getGlass/setGlass round-trip through the handlers", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+test("getSettings/setSettings round-trip through the handlers", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
-    const handlers = createHandlers({ glassFile: join(dir, "paseo-glass.json") });
-    assert.deepEqual(await handlers.getGlass(), GLASS_DEFAULTS);
+    const handlers = createHandlers({ settingsFile: join(dir, "paseo-vibrancy.json") });
+    assert.deepEqual(await handlers.getSettings(), VIBRANCY_DEFAULTS);
 
     const settings = { material: "sidebar" as const, blurRadius: 20, tint: 0.6, paneGlass: false };
-    const written = await handlers.setGlass(settings);
+    const written = await handlers.setSettings(settings);
     assert.deepEqual(written, settings);
-    assert.deepEqual(await handlers.getGlass(), settings);
+    assert.deepEqual(await handlers.getSettings(), settings);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("checkUpdate handler records the release for status to report as latest", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "glass-handlers-"));
+  const dir = mkdtempSync(join(tmpdir(), "vibrancy-handlers-"));
   try {
     const release = { version: "9.9.9", zipUrl: "https://example.com/x.zip", sha512: "abc", size: 1 };
     const handlers = createHandlers({
-      glassFile: join(dir, "paseo-glass.json"),
+      settingsFile: join(dir, "paseo-vibrancy.json"),
       execPath: "/usr/local/bin/node",
       checkLatest: async () => ({ release, error: null }),
     });

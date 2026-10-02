@@ -41,7 +41,7 @@ export type SwapOpts = {
   logPath?: string;
 };
 
-export const DEFAULT_SWAP_LOG = join(homedir(), "Library", "Logs", "paseo-glass-swap.log");
+export const DEFAULT_SWAP_LOG = join(homedir(), "Library", "Logs", "paseo-vibrancy-swap.log");
 
 /** How many 0.5s polls `swapScript` waits for the running app to quit — 60s total. */
 const QUIT_WAIT_ATTEMPTS = 120;

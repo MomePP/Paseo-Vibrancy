@@ -5,8 +5,8 @@ import {
   statusRpc,
   checkUpdateRpc,
   buildRpc,
-  getGlassRpc,
-  setGlassRpc,
+  getSettingsRpc,
+  setSettingsRpc,
 } from "../shared/rpc.ts";
 
 // Mirrors the SDK's own validation (node_modules/@getpaseo/plugin/dist/rpc.js);
@@ -15,7 +15,7 @@ import {
 const RPC_NAME = /^[a-z][a-z0-9._-]*$/;
 
 test("every rpc contract name matches the SDK's allowed pattern", () => {
-  for (const rpc of [statusRpc, checkUpdateRpc, buildRpc, getGlassRpc, setGlassRpc]) {
+  for (const rpc of [statusRpc, checkUpdateRpc, buildRpc, getSettingsRpc, setSettingsRpc]) {
     assert.match(rpc.name, RPC_NAME, `${rpc.name} must match ${RPC_NAME}`);
   }
 });
