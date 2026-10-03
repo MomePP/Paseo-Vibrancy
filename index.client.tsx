@@ -17,8 +17,9 @@
  * live subscription here.
  */
 
-import type { PluginClientContext } from "@getpaseo/plugin/client";
+import type { PluginClientContext, PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginCleanup } from "@getpaseo/plugin";
+import { ScrollView } from "@getpaseo/plugin/client/react-native";
 
 import { checkUpdateRpc, getSettingsRpc, statusRpc } from "./shared/rpc.ts";
 import type { VibrancyStatus } from "./shared/rpc.ts";
@@ -27,6 +28,19 @@ import { applyVibrancyCss } from "./client/vibrancy-css.ts";
 import VibrancyScreen from "./client/VibrancyScreen.tsx";
 
 const UPDATE_SURFACE_ID = "vibrancy-update";
+
+/**
+ * The sidebar notice opens a plain screen, which — unlike a settings screen —
+ * gets no scroll container from the host, so without this the Build card
+ * below Appearance and Terminal sits off the bottom of the window.
+ */
+function UpdateScreen(props: PluginScreenProps) {
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 16 }}>
+      <VibrancyScreen {...props} />
+    </ScrollView>
+  );
+}
 
 function updateNoticeTitle(status: VibrancyStatus): string | null {
   if (status.latest !== null && status.runningVersion !== null) {
@@ -76,7 +90,7 @@ export default function contribute(client: PluginClientContext): PluginCleanup {
       if (title === null) {
         return;
       }
-      const surfaceCleanup = client.addScreen({ id: UPDATE_SURFACE_ID, title: "Vibrancy", Component: VibrancyScreen });
+      const surfaceCleanup = client.addScreen({ id: UPDATE_SURFACE_ID, title: "Vibrancy", Component: UpdateScreen });
       const sidebarCleanup = client.addSidebarItem({
         id: UPDATE_SURFACE_ID,
         title,
