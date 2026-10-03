@@ -37,8 +37,8 @@ export const STAMP_NAME = ".vibrancy-build";
 // cannot resolve turns the update check into a logged failure instead of a
 // download that would overwrite the patches — and, on macOS, would be
 // rejected against the ad-hoc signature anyway. Rebuilding happens from the
-// Paseo-Vibrancy plugin's settings screen, not a standalone script.
-export const DEAD_UPDATE_YML = `# neutered by the Paseo-Vibrancy plugin: this copy must never self-update.
+// paseo-vibrancy plugin's settings screen, not a standalone script.
+export const DEAD_UPDATE_YML = `# neutered by the paseo-vibrancy plugin: this copy must never self-update.
 # Updates come from Settings -> Plugins -> paseo-vibrancy -> Vibrancy -> Update & restart.
 provider: generic
 url: https://127.0.0.1:1/paseo-vibrancy-disabled/

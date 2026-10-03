@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "license": "MIT",
-  "repository": "github:MomePP/Paseo-Vibrancy",
+  "repository": "github:MomePP/paseo-vibrancy",
   "type": "module",
   "files": [
     "paseo-plugin.json",

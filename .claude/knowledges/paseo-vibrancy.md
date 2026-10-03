@@ -1,18 +1,18 @@
-# Paseo-Vibrancy: how it works
+# paseo-vibrancy: how it works
 
 Paseo runs from a patched copy at `~/Applications/Paseo-Vibrancy.app`. The
 patches — transparency/vibrancy, oxocarbon ANSI colours (optional), terminal
 metrics from the Terminal settings (optionally overridden by the Ghostty
 config), lower idle frame rates — are applied by this Paseo
 plugin (manifest id `paseo-vibrancy`), installed with
-`paseo plugin install github:MomePP/Paseo-Vibrancy` (or a local clone path)
+`paseo plugin install github:MomePP/paseo-vibrancy` (or a local clone path)
 and rebuilt from Settings > Plugins > paseo-vibrancy > `…` > Vibrancy inside
 the app — no cron, no shell hook, no manual invocation. The plugin replaced
 an earlier standalone script that did the same patching by hand before
 Paseo supported plugins.
 
 The companion oxocarbon theme lives in a separate repo/plugin,
-`MomePP/Paseo-Oxocarbon` (id `paseo-oxocarbon`); the oxocarbon ANSI palette
+`MomePP/paseo-oxocarbon` (id `paseo-oxocarbon`); the oxocarbon ANSI palette
 is applied to the terminal by default, independent of the active Paseo theme,
 and can be switched to Paseo's stock palette in the Terminal settings.
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-# Paseo-Vibrancy
+# paseo-vibrancy
 
 **A frosted-glass Paseo for macOS, rebuilt and kept up to date from inside the app.**
 
@@ -8,7 +8,7 @@
 [![Paseo](https://img.shields.io/badge/paseo-%E2%89%A50.11.0--beta.3-161616?style=flat-square&labelColor=262626)](https://paseo.sh)
 [![macOS](https://img.shields.io/badge/macOS-Apple%20silicon-161616?style=flat-square&labelColor=262626)](#requirements)
 
-<img src="docs/hero.png" alt="Paseo-Vibrancy with Paseo-Oxocarbon: frosted-glass sidebar and main pane over the desktop" width="100%">
+<img src="docs/hero.png" alt="paseo-vibrancy with paseo-oxocarbon: frosted-glass sidebar and main pane over the desktop" width="100%">
 
 </div>
 
@@ -34,13 +34,13 @@ Paseo's window is opaque, and Electron gives plugins no way to change that. Pase
 In Paseo, open **Settings > Plugins**, paste the source below into **Plugin source** and press **Install plugin**:
 
 ```
-github:MomePP/Paseo-Vibrancy
+github:MomePP/paseo-vibrancy
 ```
 
 Or from a terminal:
 
 ```sh
-paseo plugin install github:MomePP/Paseo-Vibrancy
+paseo plugin install github:MomePP/paseo-vibrancy
 ```
 
 ## Build your copy
@@ -81,7 +81,7 @@ Terminal changes are baked into the copy, so they apply on **Rebuild & restart**
 
 With **Follow Ghostty config** on, a key set in `~/.config/ghostty/config` wins over the matching row: `font-family`, `font-style` (font weight), `font-style-bold` (bold weight), `cursor-style` (cursor) and `adjust-cell-height` as a percentage (line height). The font family has no row; without Ghostty it stays on Paseo's Code font. Rows Ghostty is setting show "Set by Ghostty config". With it off, the Ghostty config is not read.
 
-Oxocarbon terminal colours pair with [Paseo-Oxocarbon](https://github.com/MomePP/Paseo-Oxocarbon), which matches the rest of the app.
+Oxocarbon terminal colours pair with [paseo-oxocarbon](https://github.com/MomePP/paseo-oxocarbon), which matches the rest of the app.
 
 ### Build
 
